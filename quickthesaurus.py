@@ -1,5 +1,4 @@
-import win32gui, win32con, ctypes
-from ctypes import c_int
+import win32gui, win32con
 import threading
 import time
 import dearpygui.dearpygui as dpg
@@ -8,43 +7,56 @@ import keyboard
 from cache import Cache
 from get_syn_ant import SynAnt
 
-TRANSPARENT = True
-spell: SpellChecker = SpellChecker()
-cache: Cache = Cache()
+class Global():
+    """Global Variables"""
+    spell: SpellChecker = SpellChecker()
+    cache: Cache = Cache()
+    version: str = "Quick Thesaurus v0.0.0"
+
+    toggle_event = threading.Event()
 
 def load_image(path: str, tag: str) -> None:
-    width, height, channels, data = dpg.load_image(path)
+    """Loads an image into the texture registry"""
+    width, height, _, data = dpg.load_image(path)
     with dpg.texture_registry():
         dpg.add_static_texture(width, height, data, tag=tag)
 
-def get_word_data(word):
-    thesaurus = cache.get(word)
+def get_word_data(word: str) -> dict:
+    """Attempts to get the word data from the cache, otherwise pull it from merriam-webster"""
+    thesaurus = Global.cache.get(word)
     if thesaurus is None:
         word_data: SynAnt = SynAnt(word)
         thesaurus = word_data.get_thesaurus()
-        cache.save(word, thesaurus)
+        Global.cache.save(word, thesaurus)
     return thesaurus
 
-def search_callback(sender, app_data, user_data):
+def search_callback() -> None:
+    """Callback for entering a word in the search bar"""
     word = dpg.get_value("input_word").strip()
     if not word:
         dpg.set_value("output", "Please enter a word.")
         return
 
     # Spell check
-    corrected = spell.correction(word)
+    # TODO: This should be enhanced to provide suggestions in real time
+    corrected = Global.spell.correction(word)
     if corrected != word:
         dpg.set_value("output", f"Did you mean: {corrected}?")
         return
 
+    # If word data is none, then it isn't a real word
     word_data = get_word_data(word)
     if not word_data:
         dpg.set_value("output", f"No results found for '{word}'.")
         return
 
+    # Generate thesaurus
+    # TODO: Cleanup how the list looks to make it easier to read, each seperate entry should be it's
+    #       own button that can autofill the search bar/pull up its definition
     output = ""
     counter = 1
     for key in word_data:
+        # Ignore the cache validity key
         if key == "valid":
             continue
 
@@ -53,11 +65,11 @@ def search_callback(sender, app_data, user_data):
         output += f"\tSynonyms: {', '.join(word_data[key]['syn'])}\n"
         output += f"\tAntonyms: {', '.join(word_data[key]['ant'])}\n"
         counter += 1
-
     dpg.set_value("output", output)
 
 def toggle_window():
-    hwnd = win32gui.FindWindow(None, "Quick Thesaurus")
+    """Toggles the window state between focused and minimized"""
+    hwnd = win32gui.FindWindow(None, Global.version)
     if hwnd:
         placement = win32gui.GetWindowPlacement(hwnd)
         # placement[1] == 2 means minimized, 1 means normal
@@ -68,49 +80,45 @@ def toggle_window():
         else:
             win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
 
-toggle_event = threading.Event()
-
 def hotkey_listener():
+    """Listens for the hotkey to toggle the window state"""
     while True:
         keyboard.wait("ctrl+alt+t")
-        toggle_event.set()
-        # Wait for keys to be released before listening again
+        # DPG functions can't be run on another thread so we need to set an event so the main thread can pick it up
+        Global.toggle_event.set()
+        # Debouncing to prevent repeated openings/closings
         while keyboard.is_pressed("t"):
-            time.sleep(0.05)  # Add a short sleep to prevent busy-waiting
+            time.sleep(0.05)
 
 def poll_toggle():
-    if toggle_event.is_set():
+    """Each frame, check and see if there is a key press, if so, toggle window state"""
+    if Global.toggle_event.is_set():
         toggle_window()
-        toggle_event.clear()
+        Global.toggle_event.clear()
     dpg.set_frame_callback(dpg.get_frame_count() + 1, poll_toggle)
 
 def settings_modal():
+    """Settings modal"""
+
+    # TODO: Add more settings
     with dpg.window(label="Settings", no_move=True, no_resize=True, no_collapse=True, tag="settings", width=525, height=800, on_close=lambda: dpg.delete_item("settings")):
-        dpg.add_button(label="Purge Cache", callback=lambda:cache.purge())
+        dpg.add_button(label="Purge Cache", callback=lambda:Global.cache.purge())
 
 def main():
-    dwm = ctypes.windll.dwmapi
-
-    class MARGINS(ctypes.Structure):
-        _fields_ = [("cxLeftWidth", c_int),
-                    ("cxRightWidth", c_int),
-                    ("cyTopHeight", c_int),
-                    ("cyBottomHeight", c_int)
-                    ]
-
+    """Main func"""
     dpg.create_context()
 
+    # Add the esc key as a valid way to minimize the program
     with dpg.handler_registry():
-        dpg.add_key_press_handler(dpg.mvKey_Escape, callback=toggle_event.set)
+        dpg.add_key_press_handler(dpg.mvKey_Escape, callback=Global.toggle_event.set)
 
-    if TRANSPARENT:
-        dpg.create_viewport(title='Quick Thesaurus', x_pos=1372, y_pos=230, width=525, height=800, decorated=False, always_on_top=True, clear_color=(0.0,0.0,0.0,0.0))
-    else:
-        dpg.create_viewport(title='Quick Thesaurus', x_pos=1372, y_pos=230, width=525, height=800, always_on_top=True)
+    dpg.create_viewport(title=Global.version, x_pos=1372, y_pos=230, width=525, height=800, decorated=False, always_on_top=True, clear_color=(0.0,0.0,0.0,0.0))
 
+    # Load the settings icon
     load_image("cog.png","cog")
 
-    with dpg.window(label="Quick Thesaurus", tag="main_window", no_close=True, no_collapse=True):
+    # Main window
+    with dpg.window(label=Global.version, tag="main_window", no_close=True, no_collapse=True):
         with dpg.group(horizontal=True):
             dpg.add_input_text(label="Enter a word", tag="input_word", on_enter=True, callback=search_callback)
             dpg.add_image_button("cog",width=20,height=20, frame_padding=0, callback=settings_modal)
@@ -118,17 +126,14 @@ def main():
         dpg.add_separator()
         dpg.add_text("", tag="output", wrap=450)
 
+    # Start a thread to listen to the hotkey
     threading.Thread(target=hotkey_listener, daemon=True).start()
     dpg.setup_dearpygui()
     dpg.set_primary_window("main_window", True)
     dpg.show_viewport()
-    
-    if TRANSPARENT:
-        hwnd = win32gui.FindWindow(None, "Quick Thesaurus")
-        margins = MARGINS(-1, -1, -1, -1)
-        dwm.DwmExtendFrameIntoClientArea(hwnd, margins)
 
-    poll_toggle()  # Start polling for the toggle event
+    # Start the main thread polling to listen for the hotkey
+    poll_toggle()
     dpg.start_dearpygui()
     dpg.destroy_context()
 
