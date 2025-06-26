@@ -12,6 +12,11 @@ TRANSPARENT = True
 spell: SpellChecker = SpellChecker()
 cache: Cache = Cache()
 
+def load_image(path: str, tag: str) -> None:
+    width, height, channels, data = dpg.load_image(path)
+    with dpg.texture_registry():
+        dpg.add_static_texture(width, height, data, tag=tag)
+
 def get_word_data(word):
     thesaurus = cache.get(word)
     if thesaurus is None:
@@ -79,6 +84,10 @@ def poll_toggle():
         toggle_event.clear()
     dpg.set_frame_callback(dpg.get_frame_count() + 1, poll_toggle)
 
+def settings_modal():
+    with dpg.window(label="Settings", no_move=True, no_resize=True, no_collapse=True, tag="settings", width=525, height=800, on_close=lambda: dpg.delete_item("settings")):
+        dpg.add_button(label="Purge Cache", callback=lambda:cache.purge())
+
 def main():
     dwm = ctypes.windll.dwmapi
 
@@ -99,8 +108,12 @@ def main():
     else:
         dpg.create_viewport(title='Quick Thesaurus', x_pos=1372, y_pos=230, width=525, height=800, always_on_top=True)
 
+    load_image("cog.png","cog")
+
     with dpg.window(label="Quick Thesaurus", tag="main_window", no_close=True, no_collapse=True):
-        dpg.add_input_text(label="Enter a word", tag="input_word", on_enter=True, callback=search_callback)
+        with dpg.group(horizontal=True):
+            dpg.add_input_text(label="Enter a word", tag="input_word", on_enter=True, callback=search_callback)
+            dpg.add_image_button("cog",width=20,height=20, frame_padding=0, callback=settings_modal)
         dpg.add_button(label="Search", callback=search_callback)
         dpg.add_separator()
         dpg.add_text("", tag="output", wrap=450)
