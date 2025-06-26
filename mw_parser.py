@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 
 class SynAnt:
     """Thesaurus"""
-    def __init__(self, word):
+    def __init__(self, word: str):
         self._word = word
         html = self._get_html(word)
         self._thesaurus = {}
@@ -15,7 +15,7 @@ class SynAnt:
             self._htmlparser = BeautifulSoup(html, "html.parser")
             self._extract_definitions()
 
-    def _get_html(self, word):
+    def _get_html(self, word: str) -> str | None:
         """Get the html from Merriam-Webster"""
         url = f"https://www.merriam-webster.com/thesaurus/{word}"
         # If the webpage isn't valid it isn't a word
@@ -26,15 +26,15 @@ class SynAnt:
         except urllib.error.URLError:
             return None
 
-    def get_word(self):
+    def get_word(self) -> str:
         """Returns the word"""
         return self._word
 
-    def get_thesaurus(self):
+    def get_thesaurus(self) -> dict:
         """Returns the whole thesaurus"""
         return self._thesaurus
 
-    def _extract_definitions(self):
+    def _extract_definitions(self) -> None:
         """Extract definitions from the html"""
         # Each subdefinition is located within .sense-content
         for result in self._htmlparser.select("div[class*='sense-content']"):

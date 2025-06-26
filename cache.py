@@ -18,6 +18,7 @@ class Cache():
             with open(self.filename, "w", encoding="UTF-8") as file:
                 file.write("{}")
 
+    # R+W Cache #
     def check(self, key: str) -> bool:
         """Check if a key exists in the cache"""
         if key in self.cache:
@@ -25,19 +26,16 @@ class Cache():
                 # Cache is valid
                 return True
         return False
-
     def get(self, key: str) -> dict | None:
         """Get the key from the cache"""
         if self.check(key):
             return self.cache[key]
         return None
-
     def save(self, key: str, value: dict, save_to_disk=True) -> None:
         """Save a cache value, optionally writing to disk"""
         self.cache[key] = value
         if save_to_disk:
             self.write()
-
     def write(self, ttl_update=True) -> None:
         """Write the data to cache, adding a ttl value"""
         if ttl_update:
@@ -45,29 +43,6 @@ class Cache():
                 self.cache[key]["valid"] = int(time.time())
         with open(self.filename, "w", encoding="UTF-8") as file:
             json.dump(self.cache, file, indent=4)
-
-    def invalidate(self, key: str) -> None:
-        """Invalidate cache for a specific entry"""
-        if key in self.cache:
-            self.cache[key]["valid"] = 0
-            self.write(ttl_update=False)
-    def invalidate_all(self) -> None:
-        """Invalidate cache for all entries"""
-        for key in self.cache:
-            self.cache[key]["valid"] = 0
-        self.write(ttl_update=False)
-
-    def revalidate(self, key: str) -> None:
-        """Revalidate cache for a specific entry"""
-        if key in self.cache:
-            self.cache[key]["valid"] = self.ttl
-            self.write(ttl_update=False)
-    def revalidate_all(self) -> None:
-        """Revalidate cache for all entries"""
-        for key in self.cache:
-            self.cache[key]["valid"] = self.ttl
-        self.write(ttl_update=False)
-
     def purge(self, invalid_only=False) -> None:
         """Purge cache, optionally only discard invalid entries"""
         newcache = self.cache.copy()
@@ -83,8 +58,31 @@ class Cache():
 
         self.write(ttl_update=False)
 
+    # Cache Validation #
+    def invalidate(self, key: str) -> None:
+        """Invalidate cache for a specific entry"""
+        if key in self.cache:
+            self.cache[key]["valid"] = 0
+            self.write(ttl_update=False)
+    def invalidate_all(self) -> None:
+        """Invalidate cache for all entries"""
+        for key in self.cache:
+            self.cache[key]["valid"] = 0
+        self.write(ttl_update=False)
+    def revalidate(self, key: str) -> None:
+        """Revalidate cache for a specific entry"""
+        if key in self.cache:
+            self.cache[key]["valid"] = self.ttl
+            self.write(ttl_update=False)
+    def revalidate_all(self) -> None:
+        """Revalidate cache for all entries"""
+        for key in self.cache:
+            self.cache[key]["valid"] = self.ttl
+        self.write(ttl_update=False)
+
+    # Cache Information #
     def size(self) -> str:
-        """Returns the size of the file"""
+        """Returns the size of the cache file"""
         output = ""
         size = os.path.getsize(self.filename)
         if size >= 1000000:
@@ -95,7 +93,6 @@ class Cache():
             output = f"{size} bytes"
 
         return output
-
     def count(self) -> tuple[int, int]:
         """Returns total count, and invalid count of entries."""
         total = 0

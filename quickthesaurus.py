@@ -2,9 +2,9 @@
 import threading, time, atexit, win32gui, win32con, keyboard
 from spellchecker import SpellChecker
 import dearpygui.dearpygui as dpg
-import pyperclip
+import pyperclip as ppc
 from cache import Cache
-from get_syn_ant import SynAnt
+from mw_parser import SynAnt
 
 class Global():
     """Global Variables"""
@@ -12,7 +12,7 @@ class Global():
     cache: Cache = Cache()
 
     appname: str = "Quick Thesaurus"
-    version: str = "v0.1.0"
+    version: str = "Beta"
     builddate: str = time.strftime("%m/%d/%Y")
 
     toggle_event = threading.Event()
@@ -143,7 +143,7 @@ def settings_modal():
     """Settings modal"""
     atexit.register(exit_handler)
 
-    # TODO: Add more settings
+    # TODO: Implement settings from settings.json
     with dpg.window(label="Settings", no_move=True, no_resize=True, no_collapse=True, tag="settings",
                     width=525, height=800, on_close=lambda: dpg.delete_item("settings")):
         dpg.add_text(f"Cache Size: {Global.cache.size()}")
@@ -172,7 +172,7 @@ def scroll_to(item):
 
 def copy_clipboard(sender):
     """Copies item to clipboard"""
-    pyperclip.copy(dpg.get_item_configuration(sender)["label"])
+    ppc.copy(dpg.get_item_configuration(sender)["label"])
     Global.toggle_event.set()
 
 def main():
@@ -211,6 +211,8 @@ def main():
     dpg.setup_dearpygui()
     dpg.set_primary_window("main_window", True)
     dpg.show_viewport()
+
+    dpg.focus_item("input_word")
 
     # Start the main thread polling to listen for the hotkey
     poll_toggle()
