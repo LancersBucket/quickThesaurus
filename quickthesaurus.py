@@ -2,6 +2,7 @@
 import threading, time, atexit, win32gui, win32con, keyboard
 from spellchecker import SpellChecker
 import dearpygui.dearpygui as dpg
+import pyperclip
 from cache import Cache
 from get_syn_ant import SynAnt
 
@@ -29,70 +30,68 @@ def get_word_data(word: str) -> dict:
     if thesaurus is None:
         word_data: SynAnt = SynAnt(word)
         thesaurus = word_data.get_thesaurus()
-        Global.cache.save(word, thesaurus)
+        if thesaurus:
+            Global.cache.save(word, thesaurus)
     return thesaurus
 
-def search_callback(_sender=None, _app_data=None, search=None) -> None:
+def search_callback() -> None:
     """Callback for entering a word in the search bar"""
     dpg.delete_item("output",children_only=True)
+    dpg.set_value("err_txt","")
 
-    if search:
-        word = search
-    else:
-        word = dpg.get_value("input_word").strip()
+    word = dpg.get_value("input_word").strip()
     if not word:
-        dpg.set_value("output", "Please enter a word.")
+        dpg.set_value("err_txt", "Please enter a word.")
         return
 
     # Spell check
     # TODO: This should be enhanced to provide suggestions in real time
     corrected = Global.spell.correction(word)
     if corrected != word and corrected is not None:
-        dpg.set_value("output", f"Did you mean: {corrected}?")
+        dpg.set_value("err_txt", f"Did you mean: {corrected}?")
         return
 
     # If word data is none, then it isn't a real word
     word_data = get_word_data(word)
     if not word_data:
-        dpg.set_value("output", f"No results found for '{word}'.")
+        dpg.set_value("err_txt", f"No results found for '{word}'.")
         return
 
     # Generate thesaurus
-    # TODO: Cleanup how the list looks to make it easier to read, each seperate entry should be it's
-    #       own button that can autofill the search bar/pull up its definition
     counter = 1
     for key in word_data:
         # Ignore the cache validity key
         if key == "valid":
             continue
 
-        dpg.add_text(f"{counter}. as in {key}", parent="output")
+        dpg.add_text(f"{counter}. as in {key}", parent="output", tag=f"scroll_{key}")
         dpg.add_text(f"{word_data[key]['def']}", parent="output", wrap=450, indent=27)
-        dpg.add_text("Synonyms:", parent="output",color=(0,255,0,255))
-        with dpg.table(header_row=False,parent="output", indent=27):
-            dpg.add_table_column(indent_enable=True)
-            dpg.add_table_column(indent_enable=True)
-            dpg.add_table_column(indent_enable=True)
-            for i in range(0,len(word_data[key]['syn'])//3):
-                with dpg.table_row():
-                    for j in range(0,3):
-                        dpg.add_button(label=word_data[key]['syn'][i*3+j])
 
-        dpg.add_text("Antoynms:", parent="output",color=(255,0,0,255))
-        with dpg.table(header_row=False,parent="output", indent=27):
-            dpg.add_table_column(indent_enable=True)
-            dpg.add_table_column(indent_enable=True)
-            dpg.add_table_column(indent_enable=True)
-            for i in range(0,len(word_data[key]['ant'])//3):
-                with dpg.table_row():
-                    for j in range(0,3):
-                        dpg.add_button(label=word_data[key]['ant'][i*3+j])
+        if len(word_data[key]['syn']) > 0:
+            dpg.add_text("Synonyms:", parent="output",color=(0,255,0,255))
+            with dpg.table(header_row=False,parent="output", indent=27):
+                dpg.add_table_column(indent_enable=True)
+                dpg.add_table_column(indent_enable=True)
+                dpg.add_table_column(indent_enable=True)
+                for i in range(0,len(word_data[key]['syn'])//3):
+                    with dpg.table_row():
+                        for j in range(0,3):
+                            dpg.add_button(label=word_data[key]['syn'][i*3+j],callback=copy_clipboard)
+
+        if len(word_data[key]['ant']) > 0:
+            dpg.add_text("Antoynms:", parent="output",color=(255,0,0,255))
+            with dpg.table(header_row=False,parent="output", indent=27):
+                dpg.add_table_column(indent_enable=True)
+                dpg.add_table_column(indent_enable=True)
+                dpg.add_table_column(indent_enable=True)
+                for i in range(0,len(word_data[key]['ant'])//3):
+                    with dpg.table_row():
+                        for j in range(0,3):
+                            dpg.add_button(label=word_data[key]['ant'][i*3+j],callback=copy_clipboard)
 
         dpg.add_spacer(parent="output")
         dpg.add_separator(parent="output")
 
-        #dpg.add_text(f"Synonyms: {', '.join(word_data[key]['syn'])}", parent="output", wrap=450, indent=27)
-        #dpg.add_text(f"Antonyms: {', '.join(word_data[key]['ant'])}", parent="output", wrap=450, indent=27)
         counter += 1
 
 def toggle_window():
@@ -111,11 +110,11 @@ def toggle_window():
 def hotkey_listener():
     """Listens for the hotkey to toggle the window state"""
     while not Global.kill_event.is_set():
-        keyboard.wait("ctrl+alt+t")
+        keyboard.wait("ctrl+alt+a")
         # DPG functions can't be run on another thread so we need to set an event so the main thread can pick it up
         Global.toggle_event.set()
         # Debouncing to prevent repeated openings/closings
-        while keyboard.is_pressed("t"):
+        while keyboard.is_pressed("a"):
             time.sleep(0.05)
 
 def poll_toggle():
@@ -134,6 +133,8 @@ def settings_callback(_sender, _app_data, user_data):
             Global.cache.purge()
         case "trim":
             Global.cache.purge(invalid_only=True)
+        case "validate":
+            Global.cache.revalidate_all()
 
     dpg.delete_item("settings")
     settings_modal()
@@ -148,9 +149,31 @@ def settings_modal():
         dpg.add_text(f"Cache Size: {Global.cache.size()}")
         total, invalid = Global.cache.count()
         dpg.add_text(f"Cache Entries: {total} (Total) | {invalid} (Invalid)")
-        dpg.add_button(label="Purge Cache", callback=settings_callback, user_data="purge")
-        dpg.add_button(label="Trim Invalid Cache", callback=settings_callback, user_data="trim")
+        with dpg.group(horizontal=True):
+            dpg.add_button(label="Purge Cache", callback=settings_callback, user_data="purge")
+            dpg.add_button(label="Trim Invalid Cache", callback=settings_callback, user_data="trim")
+            dpg.add_button(label="Revalidate Cache", callback=settings_callback, user_data="validate")
         dpg.add_text(f"{Global.appname} {Global.version} - {Global.builddate}")
+
+def search_button_callback(sender):
+    """Get word from button pressed and search it"""
+    auto_search(dpg.get_item_configuration(sender)["label"])
+
+def auto_search(word):
+    """Search a word programatically"""
+    dpg.set_value("input_word", word)
+    search_callback()
+
+def scroll_to(item):
+    """Scroll to specific object in window"""
+    if dpg.does_item_exist(item):
+        _, y = dpg.get_item_pos(item)
+        dpg.set_y_scroll("main_window", y)
+
+def copy_clipboard(sender):
+    """Copies item to clipboard"""
+    pyperclip.copy(dpg.get_item_configuration(sender)["label"])
+    Global.toggle_event.set()
 
 def main():
     """Main func"""
@@ -175,8 +198,11 @@ def main():
         with dpg.group(horizontal=True):
             dpg.add_input_text(label="Enter a word", tag="input_word", on_enter=True, callback=search_callback)
             dpg.add_image_button("cog",width=24,height=24, frame_padding=0, callback=settings_modal)
-        dpg.add_button(label="Search", callback=search_callback)
-        dpg.add_spacer(parent="output")
+        with dpg.group(horizontal=True):
+            dpg.add_button(label="Search", callback=search_callback)
+            dpg.add_text(tag="err_txt")
+
+        dpg.add_spacer()
         dpg.add_separator()
         dpg.add_group(tag="output")
 
@@ -186,7 +212,6 @@ def main():
     dpg.set_primary_window("main_window", True)
     dpg.show_viewport()
 
-    search_callback(search="weird")
     # Start the main thread polling to listen for the hotkey
     poll_toggle()
     dpg.start_dearpygui()

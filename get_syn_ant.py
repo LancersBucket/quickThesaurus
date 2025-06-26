@@ -1,20 +1,30 @@
+"""Merriam-Webster Thesaurus Parser"""
 from urllib.request import urlopen
+import urllib.error
 from bs4 import BeautifulSoup
 
 class SynAnt:
     """Thesaurus"""
     def __init__(self, word):
         self._word = word
-        self._htmlparser = BeautifulSoup(self._get_html(word), "html.parser")
+        html = self._get_html(word)
         self._thesaurus = {}
-        self._extract_definitions()
+
+        # Generate html parser and thesaurus if there is no error
+        if html is not None:
+            self._htmlparser = BeautifulSoup(html, "html.parser")
+            self._extract_definitions()
 
     def _get_html(self, word):
         """Get the html from Merriam-Webster"""
         url = f"https://www.merriam-webster.com/thesaurus/{word}"
-        with urlopen(url) as page:
-            html_bytes = page.read()
-        return html_bytes.decode("utf-8")
+        # If the webpage isn't valid it isn't a word
+        try:
+            with urlopen(url) as page:
+                html_bytes = page.read()
+            return html_bytes.decode("utf-8")
+        except urllib.error.URLError:
+            return None
 
     def get_word(self):
         """Returns the word"""
