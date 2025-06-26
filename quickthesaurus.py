@@ -1,41 +1,24 @@
-import win32gui
-import win32con
-import json
+import win32gui, win32con, ctypes
+from ctypes import c_int
+import threading
+import time
 import dearpygui.dearpygui as dpg
 from spellchecker import SpellChecker
-import threading
 import keyboard
+from cache import Cache
 from get_syn_ant import SynAnt
-import os
-import ctypes
-from ctypes import c_int
-import time
 
 TRANSPARENT = True
-spell = SpellChecker()
+spell: SpellChecker = SpellChecker()
+cache: Cache = Cache()
 
 def get_word_data(word):
-    try:
-        thesaurus = check_cache(word)
-    except KeyError:
+    thesaurus = cache.get(word)
+    if thesaurus is None:
         word_data: SynAnt = SynAnt(word)
         thesaurus = word_data.get_thesaurus()
-        save_cache(word_data)
+        cache.save(word, thesaurus)
     return thesaurus
-
-def check_cache(word):
-    with open("cache.json", "r") as file:
-        cache = json.load(file)
-        if word in cache:
-            return cache[word]
-        raise KeyError(f"'{word}' not found in cache.")
-
-def save_cache(word_data):
-    with open("cache.json", "r") as file:
-        cache = json.load(file)
-    with open("cache.json", "w") as file:
-        cache[word_data.get_word()] = word_data.get_thesaurus()
-        file.write(json.dumps(cache, indent=4))
 
 def search_callback(sender, app_data, user_data):
     word = dpg.get_value("input_word").strip()
@@ -57,6 +40,9 @@ def search_callback(sender, app_data, user_data):
     output = ""
     counter = 1
     for key in word_data:
+        if key == "valid":
+            continue
+
         output += f"{counter}. as in {key}\n"
         output += f"\t{word_data[key]['def']}\n"
         output += f"\tSynonyms: {', '.join(word_data[key]['syn'])}\n"
@@ -72,6 +58,7 @@ def toggle_window():
         # placement[1] == 2 means minimized, 1 means normal
         if placement[1] == win32con.SW_SHOWMINIMIZED:
             win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+            win32gui.SetForegroundWindow(hwnd)  # Bring to front
             dpg.focus_item("input_word")
         else:
             win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
@@ -102,11 +89,11 @@ def main():
                     ("cyBottomHeight", c_int)
                     ]
 
-    if not os.path.exists("cache.json"):
-        with open("cache.json", "w") as file:
-            file.write("{}")
-
     dpg.create_context()
+
+    with dpg.handler_registry():
+        dpg.add_key_press_handler(dpg.mvKey_Escape, callback=toggle_event.set)
+
     if TRANSPARENT:
         dpg.create_viewport(title='Quick Thesaurus', x_pos=1372, y_pos=230, width=525, height=800, decorated=False, always_on_top=True, clear_color=(0.0,0.0,0.0,0.0))
     else:
