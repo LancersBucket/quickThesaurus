@@ -65,7 +65,8 @@ def search_callback() -> None:
             continue
 
         dpg.add_text(f"{counter}. as in {key}", parent="output", tag=f"scroll_{key}")
-        dpg.add_text(f"{word_data[key]['def']}", parent="output", wrap=450, indent=27)
+        if 'def' in word_data[key]:
+            dpg.add_text(f"{word_data[key]['def']}", parent="output", wrap=450, indent=27)
 
         if len(word_data[key]['syn']) > 0:
             dpg.add_text("Synonyms:", parent="output",color=(0,255,0,255))
