@@ -8,7 +8,7 @@ from mw_parser import SynAnt
 
 class Global():
     """Global Variables"""
-    spell: SpellChecker = SpellChecker()
+    spell: SpellChecker = SpellChecker(distance=2)  # Increase spell check accuracy
     cache: Cache = Cache()
 
     appname: str = "Quick Thesaurus"
@@ -26,30 +26,43 @@ def load_image(path: str, tag: str) -> None:
 
 def get_word_data(word: str) -> dict:
     """Attempts to get the word data from the cache, otherwise pull it from merriam-webster"""
-    thesaurus = Global.cache.get(word)
-    if thesaurus is None:
+    try:
+        # Check cache first
+        thesaurus = Global.cache.get(word)
+        if thesaurus is not None:
+            return thesaurus
+
+        # Fetch from Merriam-Webster
         word_data: SynAnt = SynAnt(word)
         thesaurus = word_data.get_thesaurus()
+
         if thesaurus:
+            # Only cache successful results
             Global.cache.save(word, thesaurus)
-    return thesaurus
+            return thesaurus
+        return {}
+
+    except Exception as e:
+        print(f"Error fetching word data: {e}")
+        return {}
 
 def search_callback() -> None:
     """Callback for entering a word in the search bar"""
-    dpg.delete_item("output",children_only=True)
-    dpg.set_value("err_txt","")
+    dpg.delete_item("output", children_only=True)
+    dpg.set_value("err_txt", "")
 
-    word = dpg.get_value("input_word").strip()
+    word = dpg.get_value("input_word").strip().lower()  # Normalize to lowercase
     if not word:
         dpg.set_value("err_txt", "Please enter a word.")
         return
 
-    # Spell check
-    # TODO: This should be enhanced to provide suggestions in real time
-    corrected = Global.spell.correction(word)
-    if corrected != word and corrected is not None:
-        dpg.set_value("err_txt", f"Did you mean: {corrected}?")
-        return
+    # Enhanced spell check with suggestions
+    if not Global.spell.known([word]):
+        suggestions = Global.spell.candidates(word)
+        if suggestions:
+            suggestion_text = ", ".join(list(suggestions)[:3])
+            dpg.set_value("err_txt", f"Did you mean: {suggestion_text}?")
+            return
 
     # If word data is none, then it isn't a real word
     word_data = get_word_data(word)
@@ -97,35 +110,81 @@ def search_callback() -> None:
 
 def toggle_window():
     """Toggles the window state between focused and minimized"""
-    hwnd = win32gui.FindWindow(None, Global.appname)
-    if hwnd:
+    # Use the win32 implementation and, if called from the main thread,
+    # schedule a DPG frame callback to focus the input when restored.
+    action = toggle_window_win32()
+    if action == "restore":
+        try:
+            dpg.set_frame_callback(dpg.get_frame_count() + 1, lambda: dpg.focus_item("input_word"))
+        except Exception as e:
+            print(e)
+
+def toggle_window_win32():
+    """Thread-safe toggle using only win32 calls (safe to call from hotkey thread)."""
+    try:
+        hwnd = win32gui.FindWindow(None, Global.appname)
+        if not hwnd:
+            # Fallback: try to find any top-level window that contains the appname in its title
+            def _enum(hwnd_enum, result):
+                title = win32gui.GetWindowText(hwnd_enum)
+                if title and Global.appname in title:
+                    result.append(hwnd_enum)
+            found = []
+            win32gui.EnumWindows(_enum, found)
+            if found:
+                hwnd = found[0]
+            else:
+                return None
+
         placement = win32gui.GetWindowPlacement(hwnd)
         # placement[1] == 2 means minimized, 1 means normal
-        if placement[1] == win32con.SW_SHOWMINIMIZED:
+        show_cmd = placement[1]
+        is_minimized = show_cmd in (win32con.SW_SHOWMINIMIZED, win32con.SW_MINIMIZE)
+
+        if is_minimized:
+            # Restore and try to bring to foreground
             win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-            win32gui.SetForegroundWindow(hwnd)  # Bring to front
-            dpg.focus_item("input_word")
-        else:
-            win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
+            try:
+                win32gui.SetForegroundWindow(hwnd)
+            except Exception as e:
+                print(e)
+            print(f"toggle: hwnd={hwnd} action=restore")
+            return "restore"
+
+        win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
+        print(f"toggle: hwnd={hwnd} action=minimize")
+        return "minimize"
+    except Exception as e:
+        print(f"Error in toggle_window_win32: {e}")
+        return None
 
 def hotkey_listener():
     """Listens for the hotkey to toggle the window state"""
     while not Global.kill_event.is_set():
         keyboard.wait("ctrl+alt+a")
-        # DPG functions can't be run on another thread so we need to set an event so the main thread can pick it up
-        Global.toggle_event.set()
+        toggle_window_win32()
         # Debouncing to prevent repeated openings/closings
+        # Wait until the a key is released (so you can hold ctrl+alt and tap a)
         while keyboard.is_pressed("a"):
             time.sleep(0.05)
 
+        time.sleep(0.05)
+
 def poll_toggle():
     """Each frame, check and see if there is a key press, if so, toggle window state"""
+    dpg.set_frame_callback(dpg.get_frame_count() + 1, poll_toggle)
+
     if Global.kill_event.is_set():
         return
-    if Global.toggle_event.is_set():
-        toggle_window()
+
+    try:
+        if Global.toggle_event.is_set():
+            toggle_window()
+            Global.toggle_event.clear()
+    except Exception as e:
+        print(f"Error in poll_toggle: {e}")
+        # If there's an error, clear the event to prevent getting stuck
         Global.toggle_event.clear()
-    dpg.set_frame_callback(dpg.get_frame_count() + 1, poll_toggle)
 
 def settings_callback(_sender, _app_data, user_data):
     """Callback for the settings modal, refreshes the settings page too"""
@@ -142,7 +201,6 @@ def settings_callback(_sender, _app_data, user_data):
 
 def settings_modal():
     """Settings modal"""
-    atexit.register(exit_handler)
 
     # TODO: Implement settings from settings.json
     with dpg.window(label="Settings", no_move=True, no_resize=True, no_collapse=True, tag="settings",
@@ -173,23 +231,53 @@ def scroll_to(item):
 
 def copy_clipboard(sender):
     """Copies item to clipboard"""
-    ppc.copy(dpg.get_item_configuration(sender)["label"])
-    Global.toggle_event.set()
+    try:
+        word = dpg.get_item_configuration(sender)["label"]
+        ppc.copy(word)
+        
+        toggle_window_win32()
+        dpg.set_value("err_txt", f"Copied '{word}' to clipboard")
+        threading.Timer(1.0, lambda: dpg.set_value("err_txt", "")).start()
+
+        # Ensure DPG input gets focus on the next frame (if restored)
+        try:
+            dpg.set_frame_callback(dpg.get_frame_count() + 1, lambda: dpg.focus_item("input_word"))
+        except Exception as e:
+            print(e)
+
+    except Exception as e:
+        print(f"Error copying to clipboard: {e}")
+        dpg.set_value("err_txt", "Failed to copy to clipboard")
 
 def main():
     """Main func"""
+
+    # Purge Invalid Cache on startup
+    Global.cache.purge(invalid_only=True)
+
     dpg.create_context()
 
     # Add the esc key as a valid way to minimize the program
     with dpg.handler_registry():
-        dpg.add_key_press_handler(dpg.mvKey_Escape, callback=Global.toggle_event.set)
+        dpg.add_key_release_handler(dpg.mvKey_Escape, callback=lambda: Global.toggle_event.set())
 
-    # Load font
-    with dpg.font_registry():
-        dpg.bind_font(dpg.add_font("assets/NotoSerifCJKjp-Medium.otf", 24))
+    # Load font with fallback
+    try:
+        with dpg.font_registry():
+            dpg.bind_font(dpg.add_font("assets/NotoSerifCJKjp-Medium.otf", 24))
+    except Exception as e:
+        print(f"Failed to load custom font: {e}")
+        # Will use default font
 
-    # Load the settings icon
-    load_image("assets/cog.png","cog")
+    # Load the settings icon with fallback
+    try:
+        load_image("assets/cog.png", "cog")
+    except Exception as e:
+        print(f"Failed to load settings icon: {e}")
+        # Will use text button as fallback for settings
+        with dpg.theme() as button_theme:
+            with dpg.theme_component(dpg.mvButton):
+                dpg.add_theme_color(dpg.mvThemeCol_Button, (45, 45, 45))
 
     dpg.create_viewport(title=Global.appname, x_pos=1372, y_pos=230, width=525, height=800,
                         decorated=False, always_on_top=True, clear_color=(0.0,0.0,0.0,0.0))
@@ -209,6 +297,7 @@ def main():
 
     # Start a thread to listen to the hotkey
     threading.Thread(target=hotkey_listener, daemon=True).start()
+    atexit.register(exit_handler)
     dpg.setup_dearpygui()
     dpg.set_primary_window("main_window", True)
     dpg.show_viewport()

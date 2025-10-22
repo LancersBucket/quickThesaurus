@@ -1,0 +1,6 @@
+pywin32
+keyboard
+pyperclip
+dearpygui
+pyspellchecker
+beautifulsoup4
