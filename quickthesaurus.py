@@ -4,12 +4,14 @@ from spellchecker import SpellChecker
 import dearpygui.dearpygui as dpg
 import pyperclip as ppc
 from cache import Cache
+from config import Config
 from mw_parser import SynAnt
 
-class Global():
+class Global:
     """Global Variables"""
-    spell: SpellChecker = SpellChecker(distance=2)  # Increase spell check accuracy
+    spell: SpellChecker = SpellChecker(distance=2)
     cache: Cache = Cache()
+    config: Config = Config()
 
     appname: str = "Quick Thesaurus"
     version: str = "Beta"
@@ -81,27 +83,29 @@ def search_callback() -> None:
         if 'def' in word_data[key]:
             dpg.add_text(f"{word_data[key]['def']}", parent="output", wrap=450, indent=27)
 
-        if len(word_data[key]['syn']) > 0:
-            dpg.add_text("Synonyms:", parent="output",color=(0,255,0,255))
-            with dpg.table(header_row=False,parent="output", indent=27):
-                dpg.add_table_column(indent_enable=True)
-                dpg.add_table_column(indent_enable=True)
-                dpg.add_table_column(indent_enable=True)
-                for i in range(0,len(word_data[key]['syn'])//3):
-                    with dpg.table_row():
-                        for j in range(0,3):
-                            dpg.add_button(label=word_data[key]['syn'][i*3+j],callback=copy_clipboard)
+        if Global.config.get_bool("show_synonyms"):
+            if len(word_data[key]['syn']) > 0:
+                dpg.add_text("Synonyms:", parent="output",color=(0,255,0,255))
+                with dpg.table(header_row=False,parent="output", indent=27):
+                    dpg.add_table_column(indent_enable=True)
+                    dpg.add_table_column(indent_enable=True)
+                    dpg.add_table_column(indent_enable=True)
+                    for i in range(0,len(word_data[key]['syn'])//3):
+                        with dpg.table_row():
+                            for j in range(0,3):
+                                dpg.add_button(label=word_data[key]['syn'][i*3+j],callback=copy_clipboard)
 
-        if len(word_data[key]['ant']) > 0:
-            dpg.add_text("Antoynms:", parent="output",color=(255,0,0,255))
-            with dpg.table(header_row=False,parent="output", indent=27):
-                dpg.add_table_column(indent_enable=True)
-                dpg.add_table_column(indent_enable=True)
-                dpg.add_table_column(indent_enable=True)
-                for i in range(0,len(word_data[key]['ant'])//3):
-                    with dpg.table_row():
-                        for j in range(0,3):
-                            dpg.add_button(label=word_data[key]['ant'][i*3+j],callback=copy_clipboard)
+        if Global.config.get_bool("show_antonyms"):
+            if len(word_data[key]['ant']) > 0:
+                dpg.add_text("Antoynms:", parent="output",color=(255,0,0,255))
+                with dpg.table(header_row=False,parent="output", indent=27):
+                    dpg.add_table_column(indent_enable=True)
+                    dpg.add_table_column(indent_enable=True)
+                    dpg.add_table_column(indent_enable=True)
+                    for i in range(0,len(word_data[key]['ant'])//3):
+                        with dpg.table_row():
+                            for j in range(0,3):
+                                dpg.add_button(label=word_data[key]['ant'][i*3+j],callback=copy_clipboard)
 
         dpg.add_spacer(parent="output")
         dpg.add_separator(parent="output")
@@ -186,8 +190,8 @@ def poll_toggle():
         # If there's an error, clear the event to prevent getting stuck
         Global.toggle_event.clear()
 
-def settings_callback(_sender, _app_data, user_data):
-    """Callback for the settings modal, refreshes the settings page too"""
+def scache_callback(_sender, _app_data, user_data) -> None:
+    """Callback for the cache section in settings"""
     match user_data:
         case "purge":
             Global.cache.purge()
@@ -199,19 +203,46 @@ def settings_callback(_sender, _app_data, user_data):
     dpg.delete_item("settings")
     settings_modal()
 
+def sconfig_callback(sender, _app_data, user_data) -> None:
+    """Callback for the config section in settings"""
+    match user_data:
+        case "close_on_copy":
+            Global.config.save("close_on_copy", dpg.get_value(sender))
+        case "show_synonyms":
+            Global.config.save("show_synonyms", dpg.get_value(sender))
+        case "show_antonyms":
+            Global.config.save("show_antonyms", dpg.get_value(sender))
+        case _:
+            print("Unknown option")
+
 def settings_modal():
     """Settings modal"""
 
-    # TODO: Implement settings from settings.json
     with dpg.window(label="Settings", no_move=True, no_resize=True, no_collapse=True, tag="settings",
                     width=525, height=800, on_close=lambda: dpg.delete_item("settings")):
+        # Settings #
+        dpg.add_text("Window Settings:")
+        dpg.add_checkbox(label="Close on Copy", default_value=Global.config.get_bool("close_on_copy"),
+                         callback=sconfig_callback, user_data="close_on_copy")
+
+        dpg.add_separator()
+
+        dpg.add_text("Display Settings")
+        dpg.add_checkbox(label="Show Synonyms", default_value=Global.config.get_bool("show_synonyms"),
+                         callback=sconfig_callback, user_data="show_synonyms")
+        dpg.add_checkbox(label="Show Antonyms", default_value=Global.config.get_bool("show_antonyms"),
+                         callback=sconfig_callback, user_data="show_antonyms")
+
+        dpg.add_separator()
+
+        # Cache #
         dpg.add_text(f"Cache Size: {Global.cache.size()}")
         total, invalid = Global.cache.count()
-        dpg.add_text(f"Cache Entries: {total} (Total) | {invalid} (Invalid)")
+        dpg.add_text(f"Cache Entries: {total} (Total) | {invalid} [{(invalid/total) * 100}%](Invalid)")
         with dpg.group(horizontal=True):
-            dpg.add_button(label="Purge Cache", callback=settings_callback, user_data="purge")
-            dpg.add_button(label="Trim Invalid Cache", callback=settings_callback, user_data="trim")
-            dpg.add_button(label="Revalidate Cache", callback=settings_callback, user_data="validate")
+            dpg.add_button(label="Purge Cache", callback=scache_callback, user_data="purge")
+            dpg.add_button(label="Trim Invalid Cache", callback=scache_callback, user_data="trim")
+            dpg.add_button(label="Revalidate Cache", callback=scache_callback, user_data="validate")
         dpg.add_text(f"{Global.appname} {Global.version} - {Global.builddate}")
 
 def search_button_callback(sender):
@@ -234,10 +265,12 @@ def copy_clipboard(sender):
     try:
         word = dpg.get_item_configuration(sender)["label"]
         ppc.copy(word)
-        
-        toggle_window_win32()
-        dpg.set_value("err_txt", f"Copied '{word}' to clipboard")
-        threading.Timer(1.0, lambda: dpg.set_value("err_txt", "")).start()
+
+        if Global.config.get_bool("close_on_copy"):
+            toggle_window_win32()
+        else:
+            dpg.set_value("err_txt", f"Copied '{word}' to clipboard")
+            threading.Timer(1.0, lambda: dpg.set_value("err_txt", "")).start()
 
         # Ensure DPG input gets focus on the next frame (if restored)
         try:
@@ -275,7 +308,7 @@ def main():
     except Exception as e:
         print(f"Failed to load settings icon: {e}")
         # Will use text button as fallback for settings
-        with dpg.theme() as button_theme:
+        with dpg.theme():
             with dpg.theme_component(dpg.mvButton):
                 dpg.add_theme_color(dpg.mvThemeCol_Button, (45, 45, 45))
 
@@ -286,7 +319,7 @@ def main():
     with dpg.window(label=Global.appname, tag="main_window", no_close=True, no_collapse=True):
         with dpg.group(horizontal=True):
             dpg.add_input_text(label="Enter a word", tag="input_word", on_enter=True, callback=search_callback)
-            dpg.add_image_button("cog",width=24,height=24, frame_padding=0, callback=settings_modal)
+            dpg.add_image_button("cog", width=24, height=24, callback=settings_modal)
         with dpg.group(horizontal=True):
             dpg.add_button(label="Search", callback=search_callback)
             dpg.add_text(tag="err_txt")

@@ -1,7 +1,7 @@
 """Cache Handler"""
 import json, os, time
 
-class Cache():
+class Cache:
     """Cache Handler"""
     def __init__(self, filename="cache.json", ttl=604800):
         self.filename = filename
