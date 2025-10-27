@@ -3,7 +3,7 @@ import json, os, time
 
 class Cache:
     """Cache Handler"""
-    def __init__(self, filename="cache.json", ttl=604800):
+    def __init__(self, filename="cache.json", ttl=604800) -> None:
         self.filename = filename
 
         # TTL is currently set to 1 week, although I'm not sure what would be a better value
@@ -31,7 +31,7 @@ class Cache:
         if self.check(key):
             return self.cache[key]
         return None
-    def save(self, key: str, value: dict, save_to_disk=True) -> None:
+    def save(self, key: str, value, save_to_disk=True) -> None:
         """Save a cache value, optionally writing to disk"""
         self.cache[key] = value
         if save_to_disk:

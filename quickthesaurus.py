@@ -1,5 +1,6 @@
 """Quick Thesaurus"""
-import threading, time, atexit, win32gui, win32con, keyboard
+import threading, time, atexit, win32gui, win32con, keyboard, win32api
+import ctypes
 from spellchecker import SpellChecker
 import dearpygui.dearpygui as dpg
 import pyperclip as ppc
@@ -83,7 +84,7 @@ def search_callback() -> None:
         if 'def' in word_data[key]:
             dpg.add_text(f"{word_data[key]['def']}", parent="output", wrap=450, indent=27)
 
-        if Global.config.get_bool("show_synonyms"):
+        if Global.config.get("show_synonyms"):
             if len(word_data[key]['syn']) > 0:
                 dpg.add_text("Synonyms:", parent="output",color=(0,255,0,255))
                 with dpg.table(header_row=False,parent="output", indent=27):
@@ -95,7 +96,7 @@ def search_callback() -> None:
                             for j in range(0,3):
                                 dpg.add_button(label=word_data[key]['syn'][i*3+j],callback=copy_clipboard)
 
-        if Global.config.get_bool("show_antonyms"):
+        if Global.config.get("show_antonyms"):
             if len(word_data[key]['ant']) > 0:
                 dpg.add_text("Antoynms:", parent="output",color=(255,0,0,255))
                 with dpg.table(header_row=False,parent="output", indent=27):
@@ -112,7 +113,7 @@ def search_callback() -> None:
 
         counter += 1
 
-def toggle_window():
+def toggle_window() -> None:
     """Toggles the window state between focused and minimized"""
     # Use the win32 implementation and, if called from the main thread,
     # schedule a DPG frame callback to focus the input when restored.
@@ -123,7 +124,7 @@ def toggle_window():
         except Exception as e:
             print(e)
 
-def toggle_window_win32():
+def toggle_window_win32() -> str | None:
     """Thread-safe toggle using only win32 calls (safe to call from hotkey thread)."""
     try:
         hwnd = win32gui.FindWindow(None, Global.appname)
@@ -162,7 +163,7 @@ def toggle_window_win32():
         print(f"Error in toggle_window_win32: {e}")
         return None
 
-def hotkey_listener():
+def hotkey_listener() -> None:
     """Listens for the hotkey to toggle the window state"""
     while not Global.kill_event.is_set():
         keyboard.wait("ctrl+alt+a")
@@ -174,7 +175,7 @@ def hotkey_listener():
 
         time.sleep(0.05)
 
-def poll_toggle():
+def poll_toggle() -> None:
     """Each frame, check and see if there is a key press, if so, toggle window state"""
     dpg.set_frame_callback(dpg.get_frame_count() + 1, poll_toggle)
 
@@ -190,7 +191,7 @@ def poll_toggle():
         # If there's an error, clear the event to prevent getting stuck
         Global.toggle_event.clear()
 
-def scache_callback(_sender, _app_data, user_data) -> None:
+def scache_callback(_sender, _app_data, user_data: str) -> None:
     """Callback for the cache section in settings"""
     match user_data:
         case "purge":
@@ -203,8 +204,23 @@ def scache_callback(_sender, _app_data, user_data) -> None:
     dpg.delete_item("settings")
     settings_modal()
 
-def sconfig_callback(sender, _app_data, user_data) -> None:
+def sconfig_callback(sender, _app_data, user_data: str) -> None:
     """Callback for the config section in settings"""
+    def move_window(y: int, alignment: str) -> None:
+        """Move and resize window"""
+
+        # TODO: Add support for vertial alignment and vertial positioning
+        width = Global.config.get("window_size")[0]
+        height = Global.config.get("window_size")[1]
+        screen_width = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
+
+        if alignment == "right":
+            win32gui.MoveWindow(win32gui.FindWindow(None, Global.appname),
+                                screen_width-width, y, width, height, True)
+        else:
+            win32gui.MoveWindow(win32gui.FindWindow(None, Global.appname),
+                                0, y, width, height, True)
+
     match user_data:
         case "close_on_copy":
             Global.config.save("close_on_copy", dpg.get_value(sender))
@@ -212,61 +228,97 @@ def sconfig_callback(sender, _app_data, user_data) -> None:
             Global.config.save("show_synonyms", dpg.get_value(sender))
         case "show_antonyms":
             Global.config.save("show_antonyms", dpg.get_value(sender))
+        case "align_left":
+            Global.config.save("alignment", "left")
+            move_window(0, "left")
+        case "align_right":
+            Global.config.save("alignment", "right")
+            move_window(0, "right")
+        case "hw":
+            width = dpg.get_value("width_input")
+            height = dpg.get_value("height_input")
+            Global.config.save("window_size", [width, height])
+            move_window(0, Global.config.get("alignment"))
+        case "reset":
+            Global.config.set_default()
+            move_window(0, Global.config.get("alignment"))
         case _:
             print("Unknown option")
 
-def settings_modal():
+    dpg.delete_item("settings")
+    settings_modal()
+
+def settings_modal() -> None:
     """Settings modal"""
 
-    with dpg.window(label="Settings", no_move=True, no_resize=True, no_collapse=True, tag="settings",
-                    width=525, height=800, on_close=lambda: dpg.delete_item("settings")):
+    with dpg.window(label="Settings", no_move=True, no_resize=False,
+                    no_collapse=True, tag="settings",
+                    width=Global.config.get("window_size")[0],
+                    height=Global.config.get("window_size")[1],
+                    on_close=lambda: dpg.delete_item("settings")):
         # Settings #
         dpg.add_text("Window Settings:")
-        dpg.add_checkbox(label="Close on Copy", default_value=Global.config.get_bool("close_on_copy"),
+
+        dpg.add_button(label="Align Left", callback=sconfig_callback, user_data="align_left")
+        dpg.add_button(label="Align Right", callback=sconfig_callback, user_data="align_right")
+
+        with dpg.group(horizontal=True):
+            dpg.add_input_int(label="Width", tag="width_input", width=150,
+                              default_value=Global.config.get("window_size")[0])
+            dpg.add_input_int(label="Height", tag="height_input", width=150,
+                              default_value=Global.config.get("window_size")[1])
+        dpg.add_button(label="Save", callback=sconfig_callback, user_data="hw")
+
+        dpg.add_checkbox(label="Close on Copy", default_value=Global.config.get("close_on_copy"),
                          callback=sconfig_callback, user_data="close_on_copy")
 
-        dpg.add_separator()
+        dpg.add_spacing(count=5)
 
-        dpg.add_text("Display Settings")
-        dpg.add_checkbox(label="Show Synonyms", default_value=Global.config.get_bool("show_synonyms"),
+        dpg.add_text("Display Settings:")
+        dpg.add_checkbox(label="Show Synonyms", default_value=Global.config.get("show_synonyms"),
                          callback=sconfig_callback, user_data="show_synonyms")
-        dpg.add_checkbox(label="Show Antonyms", default_value=Global.config.get_bool("show_antonyms"),
+        dpg.add_checkbox(label="Show Antonyms", default_value=Global.config.get("show_antonyms"),
                          callback=sconfig_callback, user_data="show_antonyms")
 
+        dpg.add_spacing(count=5)
+
+        dpg.add_button(label="Reset to Default", callback=sconfig_callback, user_data="reset")
+
+        dpg.add_spacing(count=10)
         dpg.add_separator()
 
         # Cache #
         dpg.add_text(f"Cache Size: {Global.cache.size()}")
         total, invalid = Global.cache.count()
-        dpg.add_text(f"Cache Entries: {total} (Total) | {invalid} [{(invalid/total) * 100}%](Invalid)")
+        dpg.add_text(f"Cache Entries: {total} (Total) | {invalid} [{(invalid/total) * 100}%] (Invalid)")
         with dpg.group(horizontal=True):
             dpg.add_button(label="Purge Cache", callback=scache_callback, user_data="purge")
             dpg.add_button(label="Trim Invalid Cache", callback=scache_callback, user_data="trim")
             dpg.add_button(label="Revalidate Cache", callback=scache_callback, user_data="validate")
         dpg.add_text(f"{Global.appname} {Global.version} - {Global.builddate}")
 
-def search_button_callback(sender):
+def search_button_callback(sender) -> None:
     """Get word from button pressed and search it"""
     auto_search(dpg.get_item_configuration(sender)["label"])
 
-def auto_search(word):
+def auto_search(word) -> None:
     """Search a word programatically"""
     dpg.set_value("input_word", word)
     search_callback()
 
-def scroll_to(item):
+def scroll_to(item) -> None:
     """Scroll to specific object in window"""
     if dpg.does_item_exist(item):
         _, y = dpg.get_item_pos(item)
         dpg.set_y_scroll("main_window", y)
 
-def copy_clipboard(sender):
+def copy_clipboard(sender) -> None:
     """Copies item to clipboard"""
     try:
         word = dpg.get_item_configuration(sender)["label"]
         ppc.copy(word)
 
-        if Global.config.get_bool("close_on_copy"):
+        if Global.config.get("close_on_copy"):
             toggle_window_win32()
         else:
             dpg.set_value("err_txt", f"Copied '{word}' to clipboard")
@@ -277,12 +329,11 @@ def copy_clipboard(sender):
             dpg.set_frame_callback(dpg.get_frame_count() + 1, lambda: dpg.focus_item("input_word"))
         except Exception as e:
             print(e)
-
     except Exception as e:
         print(f"Error copying to clipboard: {e}")
         dpg.set_value("err_txt", "Failed to copy to clipboard")
 
-def main():
+def main() -> None:
     """Main func"""
 
     # Purge Invalid Cache on startup
@@ -318,7 +369,8 @@ def main():
     # Main window
     with dpg.window(label=Global.appname, tag="main_window", no_close=True, no_collapse=True):
         with dpg.group(horizontal=True):
-            dpg.add_input_text(label="Enter a word", tag="input_word", on_enter=True, callback=search_callback)
+            dpg.add_input_text(label="Enter a word", tag="input_word",
+                               on_enter=True, callback=search_callback)
             dpg.add_image_button("cog", width=24, height=24, callback=settings_modal)
         with dpg.group(horizontal=True):
             dpg.add_button(label="Search", callback=search_callback)
@@ -342,11 +394,12 @@ def main():
     dpg.start_dearpygui()
     dpg.destroy_context()
 
-def exit_handler():
+def exit_handler() -> None:
     """Cleanup on quit"""
     # This might not be strictly necessary, since the keyboard listener is a daemon thread,
     # But this should still fire for the keyboard poll event loop
     Global.kill_event.set()
 
 if __name__ == "__main__":
+    ctypes.windll.user32.SetProcessDPIAware()
     main()
