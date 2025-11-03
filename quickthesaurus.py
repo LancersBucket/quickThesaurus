@@ -20,12 +20,6 @@ class Global:
     toggle_event = threading.Event()
     kill_event = threading.Event()
 
-def load_image(path: str, tag: str) -> None:
-    """Loads an image into the texture registry"""
-    width, height, _, data = dpg.load_image(path)
-    with dpg.texture_registry():
-        dpg.add_static_texture(width, height, data, tag=tag)
-
 def get_word_data(word: str) -> dict:
     """Attempts to get the word data from the cache, otherwise pull it from merriam-webster"""
     try:
@@ -205,15 +199,8 @@ def scache_callback(_sender, _app_data, user_data: str) -> None:
     dpg.delete_item("settings")
     settings_modal()
 
-def sconfig_callback(sender, _app_data, user_data: str) -> None:
-    """Callback for the config section in settings"""
-    def move_window(y: int, alignment: str) -> None:
-        """Move and resize window"""
-
-        # TODO: Add support for vertial alignment and vertial positioning
-        width = Global.config.get("window_size")[0]
-        height = Global.config.get("window_size")[1]
-        screen_width = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
+def move_window() -> None:
+    """Move and resize window"""
 
         if alignment == "right":
             win32gui.MoveWindow(win32gui.FindWindow(None, Global.appname),
