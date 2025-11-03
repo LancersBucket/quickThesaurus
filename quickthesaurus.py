@@ -6,6 +6,7 @@ import pyperclip as ppc
 from cache import Cache
 from config import Config
 from mw_parser import SynAnt
+import bucket_helper as bh
 
 class Global:
     """Global Variables"""
@@ -201,14 +202,24 @@ def scache_callback(_sender, _app_data, user_data: str) -> None:
 
 def move_window() -> None:
     """Move and resize window"""
+    alignment = Global.config.get("alignment")
+    width = Global.config.get("window_size")[0]
+    height = Global.config.get("window_size")[1]
+    screen_width = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
+    screen_height = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
+    horizontal_offset = Global.config.get("offset")[0]
+    vertical_offset = Global.config.get("offset")[1]
+    y_pos = screen_height//2 - height//2 + vertical_offset
 
-        if alignment == "right":
-            win32gui.MoveWindow(win32gui.FindWindow(None, Global.appname),
-                                screen_width-width, y, width, height, True)
-        else:
-            win32gui.MoveWindow(win32gui.FindWindow(None, Global.appname),
-                                0, y, width, height, True)
+    if alignment == "right":
+        win32gui.MoveWindow(win32gui.FindWindow(None, Global.appname),
+                            screen_width-width-horizontal_offset, y_pos, width, height, True)
+    else:
+        win32gui.MoveWindow(win32gui.FindWindow(None, Global.appname),
+                            0+horizontal_offset, y_pos, width, height, True)
 
+def sconfig_callback(sender, _app_data, user_data: str) -> None:
+    """Callback for the config section in settings"""
     match user_data:
         case "close_on_copy":
             Global.config.save("close_on_copy", dpg.get_value(sender))
@@ -216,29 +227,27 @@ def move_window() -> None:
             Global.config.save("show_synonyms", dpg.get_value(sender))
         case "show_antonyms":
             Global.config.save("show_antonyms", dpg.get_value(sender))
-        case "align_left":
-            Global.config.save("alignment", "left")
-            move_window(0, "left")
-        case "align_right":
-            Global.config.save("alignment", "right")
-            move_window(0, "right")
-        case "hw":
+        case "save_window":
+            alignment = "left" if dpg.get_value("align_radio") == "Align Left" else "right"
             width = dpg.get_value("width_input")
             height = dpg.get_value("height_input")
+            horizontal_offset = dpg.get_value("horizontal_offset_input")
+            vertical_offset = dpg.get_value("vertical_offset_input")
+            Global.config.save("alignment", alignment)
             Global.config.save("window_size", [width, height])
-            move_window(0, Global.config.get("alignment"))
+            Global.config.save("offset", [horizontal_offset, vertical_offset])
+            move_window()
         case "reset":
             Global.config.set_default()
-            move_window(0, Global.config.get("alignment"))
+            move_window()
         case _:
-            print("Unknown option")
+            raise NotImplementedError("Unknown option")
 
     dpg.delete_item("settings")
     settings_modal()
 
 def settings_modal() -> None:
     """Settings modal"""
-
     with dpg.window(label="Settings", no_move=True, no_resize=False,
                     no_collapse=True, tag="settings",
                     width=Global.config.get("window_size")[0],
@@ -247,20 +256,24 @@ def settings_modal() -> None:
         # Settings #
         dpg.add_text("Window Settings:")
 
-        dpg.add_button(label="Align Left", callback=sconfig_callback, user_data="align_left")
-        dpg.add_button(label="Align Right", callback=sconfig_callback, user_data="align_right")
+        dpg.add_radio_button(["Align Left", "Align Right"],
+                             default_value=("Align Right" if Global.config.get("alignment") == "right" else "Align Left"),
+                             tag="align_radio",horizontal=True)
+        dpg.add_input_int(label="Width", tag="width_input", width=150,
+                            default_value=Global.config.get("window_size")[0])
+        dpg.add_input_int(label="Height", tag="height_input", width=150,
+                            default_value=Global.config.get("window_size")[1])
+        dpg.add_input_int(label="Horizontal Offset", tag="horizontal_offset_input", width=150,
+                            default_value=Global.config.get("offset")[0])
+        dpg.add_input_int(label="Vertical Offset", tag="vertical_offset_input", width=150,
+                            default_value=Global.config.get("offset")[1])
 
-        with dpg.group(horizontal=True):
-            dpg.add_input_int(label="Width", tag="width_input", width=150,
-                              default_value=Global.config.get("window_size")[0])
-            dpg.add_input_int(label="Height", tag="height_input", width=150,
-                              default_value=Global.config.get("window_size")[1])
-        dpg.add_button(label="Save", callback=sconfig_callback, user_data="hw")
+        dpg.add_button(label="Save", callback=sconfig_callback, user_data="save_window")
 
         dpg.add_checkbox(label="Close on Copy", default_value=Global.config.get("close_on_copy"),
                          callback=sconfig_callback, user_data="close_on_copy")
 
-        dpg.add_spacing(count=5)
+        dpg.add_spacer(height=3)
 
         dpg.add_text("Display Settings:")
         dpg.add_checkbox(label="Show Synonyms", default_value=Global.config.get("show_synonyms"),
@@ -268,7 +281,7 @@ def settings_modal() -> None:
         dpg.add_checkbox(label="Show Antonyms", default_value=Global.config.get("show_antonyms"),
                          callback=sconfig_callback, user_data="show_antonyms")
 
-        dpg.add_spacing(count=5)
+        dpg.add_spacer(height=5)
 
         dpg.add_button(label="Reset to Default", callback=sconfig_callback, user_data="reset")
 
@@ -288,7 +301,7 @@ def settings_modal() -> None:
             dpg.add_button(label="Revalidate Cache", callback=scache_callback, user_data="validate")
         dpg.add_text(f"{Global.appname} {Global.version} - {Global.builddate}")
 
-        dpg.add_spacing(count=5)
+        dpg.add_spacer(height=3)
 
         dpg.add_button(label="Quit", callback=exit_handler)
 
@@ -346,19 +359,29 @@ def main() -> None:
             dpg.bind_font(dpg.add_font("assets/NotoSerifCJKjp-Medium.otf", 24))
     except Exception as e:
         print(f"Failed to load custom font: {e}")
-        # Will use default font
 
     # Load the settings icon with fallback
     try:
         bh.load_image("assets/cog.png", "cog")
     except Exception as e:
         print(f"Failed to load settings icon: {e}")
-        # Will use text button as fallback for settings
-        with dpg.theme():
-            with dpg.theme_component(dpg.mvButton):
-                dpg.add_theme_color(dpg.mvThemeCol_Button, (45, 45, 45))
 
-    dpg.create_viewport(title=Global.appname, x_pos=1372, y_pos=230, width=525, height=800,
+    alignment = Global.config.get("alignment")
+    width = Global.config.get("window_size")[0]
+    height = Global.config.get("window_size")[1]
+    screen_width = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
+    screen_height = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
+    horizontal_offset = Global.config.get("offset")[0]
+    vertical_offset = Global.config.get("offset")[1]
+    y_pos = screen_height//2 - height//2 + vertical_offset
+
+    if alignment == "right":
+        dpg.create_viewport(title=Global.appname, x_pos=screen_width-width-horizontal_offset,
+                        y_pos=y_pos, width=width, height=height,
+                        decorated=False, always_on_top=True, clear_color=(0.0,0.0,0.0,0.0))
+    else:
+        dpg.create_viewport(title=Global.appname, x_pos=0+horizontal_offset,
+                        y_pos=y_pos, width=width, height=height,
                         decorated=False, always_on_top=True, clear_color=(0.0,0.0,0.0,0.0))
 
     # Main window

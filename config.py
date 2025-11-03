@@ -4,7 +4,7 @@ import json, os
 class Config:
     """Configuration Handler"""
     default_config = {
-        "window_pos": [1372, 230],
+        "offset": [23, 0],
         "window_size": [525, 800],
         "alignment": "right",
         "close_on_copy": True,
