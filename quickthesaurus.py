@@ -48,7 +48,7 @@ def search_callback() -> None:
     dpg.delete_item("output", children_only=True)
     dpg.set_value("err_txt", "Loading...")
 
-    word = dpg.get_value("input_word").strip().lower()  # Normalize to lowercase
+    word = dpg.get_value("input_word").strip().lower()
     if not word:
         dpg.set_value("err_txt", "Please enter a word.")
         return
@@ -80,7 +80,7 @@ def search_callback() -> None:
 
         if Global.config.get("show_synonyms"):
             if len(word_data[key]['syn']) > 0:
-                dpg.add_text("Synonyms:", parent="output",color=(0,255,0,255))
+                dpg.add_text("Synonyms:", parent="output",color=bh.Color.GREEN)
                 with dpg.table(header_row=False,parent="output", indent=27):
                     dpg.add_table_column(indent_enable=True)
                     dpg.add_table_column(indent_enable=True)
@@ -92,7 +92,7 @@ def search_callback() -> None:
 
         if Global.config.get("show_antonyms"):
             if len(word_data[key]['ant']) > 0:
-                dpg.add_text("Antoynms:", parent="output",color=(255,0,0,255))
+                dpg.add_text("Antoynms:", parent="output",color=bh.Color.RED)
                 with dpg.table(header_row=False,parent="output", indent=27):
                     dpg.add_table_column(indent_enable=True)
                     dpg.add_table_column(indent_enable=True)
@@ -376,13 +376,13 @@ def main() -> None:
     y_pos = screen_height//2 - height//2 + vertical_offset
 
     if alignment == "right":
-        dpg.create_viewport(title=Global.appname, x_pos=screen_width-width-horizontal_offset,
-                        y_pos=y_pos, width=width, height=height,
-                        decorated=False, always_on_top=True, clear_color=(0.0,0.0,0.0,0.0))
+        dpg.create_viewport(title=Global.appname, x_pos=(screen_width-width-horizontal_offset),
+                            y_pos=y_pos, width=width, height=height,
+                            decorated=False, always_on_top=True, clear_color=bh.Color.CLEAR)
     else:
         dpg.create_viewport(title=Global.appname, x_pos=0+horizontal_offset,
-                        y_pos=y_pos, width=width, height=height,
-                        decorated=False, always_on_top=True, clear_color=(0.0,0.0,0.0,0.0))
+                            y_pos=y_pos, width=width, height=height,
+                            decorated=False, always_on_top=True, clear_color=bh.Color.CLEAR)
 
     # Main window
     with dpg.window(label=Global.appname, tag="main_window", no_close=True, no_collapse=True):
