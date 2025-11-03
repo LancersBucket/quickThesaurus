@@ -21,7 +21,7 @@ class Global:
     kill_event = threading.Event()
 
 def get_word_data(word: str) -> dict:
-    """Attempts to get the word data from the cache, otherwise pull it from merriam-webster"""
+    """Attempts to get the word data from the cache, otherwise pull it from Merriam-Webster"""
     try:
         # Check cache first
         thesaurus = Global.cache.get(word)
@@ -70,7 +70,7 @@ def search_callback() -> None:
     counter = 1
     for key in word_data:
         # Ignore the cache validity key
-        if key == "valid":
+        if key == "__valid":
             continue
 
         dpg.add_text(f"{counter}. as in {key}", parent="output", tag=f"scroll_{key}")
@@ -350,7 +350,7 @@ def main() -> None:
 
     # Load the settings icon with fallback
     try:
-        load_image("assets/cog.png", "cog")
+        bh.load_image("assets/cog.png", "cog")
     except Exception as e:
         print(f"Failed to load settings icon: {e}")
         # Will use text button as fallback for settings
