@@ -1,6 +1,5 @@
 """Quick Thesaurus"""
-import threading, time, atexit, win32gui, win32con, keyboard, win32api
-import ctypes
+import threading, time, atexit, win32gui, win32con, keyboard, win32api, ctypes
 from spellchecker import SpellChecker
 import dearpygui.dearpygui as dpg
 import pyperclip as ppc
@@ -52,7 +51,7 @@ def get_word_data(word: str) -> dict:
 def search_callback() -> None:
     """Callback for entering a word in the search bar"""
     dpg.delete_item("output", children_only=True)
-    dpg.set_value("err_txt", "")
+    dpg.set_value("err_txt", "Loading...")
 
     word = dpg.get_value("input_word").strip().lower()  # Normalize to lowercase
     if not word:
@@ -113,6 +112,8 @@ def search_callback() -> None:
 
         counter += 1
 
+    dpg.set_value("err_txt", "")
+
 def toggle_window() -> None:
     """Toggles the window state between focused and minimized"""
     # Use the win32 implementation and, if called from the main thread,
@@ -167,7 +168,7 @@ def hotkey_listener() -> None:
     """Listens for the hotkey to toggle the window state"""
     while not Global.kill_event.is_set():
         keyboard.wait("ctrl+alt+a")
-        toggle_window_win32()
+        toggle_window()
         # Debouncing to prevent repeated openings/closings
         # Wait until the a key is released (so you can hold ctrl+alt and tap a)
         while keyboard.is_pressed("a"):
@@ -284,18 +285,25 @@ def settings_modal() -> None:
 
         dpg.add_button(label="Reset to Default", callback=sconfig_callback, user_data="reset")
 
-        dpg.add_spacing(count=10)
         dpg.add_separator()
 
         # Cache #
         dpg.add_text(f"Cache Size: {Global.cache.size()}")
         total, invalid = Global.cache.count()
-        dpg.add_text(f"Cache Entries: {total} (Total) | {invalid} [{(invalid/total) * 100}%] (Invalid)")
+        if total == 0:
+            percent_invalid = 0.0
+        else:
+            percent_invalid = (invalid / total) * 100
+        dpg.add_text(f"Cache Entries: {total} (Total) | {invalid} [{percent_invalid}%] (Invalid)")
         with dpg.group(horizontal=True):
             dpg.add_button(label="Purge Cache", callback=scache_callback, user_data="purge")
             dpg.add_button(label="Trim Invalid Cache", callback=scache_callback, user_data="trim")
             dpg.add_button(label="Revalidate Cache", callback=scache_callback, user_data="validate")
         dpg.add_text(f"{Global.appname} {Global.version} - {Global.builddate}")
+
+        dpg.add_spacing(count=5)
+
+        dpg.add_button(label="Quit", callback=exit_handler)
 
 def search_button_callback(sender) -> None:
     """Get word from button pressed and search it"""
@@ -399,6 +407,7 @@ def exit_handler() -> None:
     # This might not be strictly necessary, since the keyboard listener is a daemon thread,
     # But this should still fire for the keyboard poll event loop
     Global.kill_event.set()
+    dpg.destroy_context()
 
 if __name__ == "__main__":
     ctypes.windll.user32.SetProcessDPIAware()
