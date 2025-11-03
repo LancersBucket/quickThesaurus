@@ -1,11 +1,10 @@
 """Merriam-Webster Thesaurus Parser"""
-from urllib.request import urlopen
-import urllib.error
+import urllib.parse, urllib.request, urllib.error
 from bs4 import BeautifulSoup
 
 class SynAnt:
     """Thesaurus"""
-    def __init__(self, word: str):
+    def __init__(self, word: str) -> None:
         self._word = word
         html = self._get_html(word)
         self._thesaurus = {}
@@ -17,10 +16,11 @@ class SynAnt:
 
     def _get_html(self, word: str) -> str | None:
         """Get the html from Merriam-Webster"""
-        url = f"https://www.merriam-webster.com/thesaurus/{word}"
+        safe_word = urllib.parse.quote_plus(word)
+        url = f"https://www.merriam-webster.com/thesaurus/{safe_word}"
         # If the webpage isn't valid it isn't a word
         try:
-            with urlopen(url) as page:
+            with urllib.request.urlopen(url) as page:
                 html_bytes = page.read()
             return html_bytes.decode("utf-8")
         except urllib.error.URLError:
