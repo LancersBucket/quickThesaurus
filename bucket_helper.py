@@ -16,7 +16,7 @@ def load_image(path: str, tag: str) -> None:
     except Exception:
         print(f"Failed to load image at {path}, using fallback texture.")
         texture_data = []
-        for i in range(0, 100 * 100):
+        for _ in range(0, 100 * 100):
             texture_data.append(255 / 255)
             texture_data.append(0)
             texture_data.append(255 / 255)

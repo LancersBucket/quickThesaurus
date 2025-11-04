@@ -43,9 +43,15 @@ def get_word_data(word: str) -> dict:
         print(f"Error fetching word data: {e}")
         return {}
 
+def autocorrect_callback(_sender, _app_data, user_data) -> None:
+    """Tab to autocorrect to first result"""
+    dpg.delete_item("autocorrect_handler")
+    dpg.set_value("input_word", user_data)
+
 def search_callback() -> None:
     """Callback for entering a word in the search bar"""
     dpg.delete_item("output", children_only=True)
+    dpg.delete_item("autocorrect_handler")
     dpg.set_value("err_txt", "Loading...")
 
     word = dpg.get_value("input_word").strip().lower()
@@ -57,6 +63,9 @@ def search_callback() -> None:
     if not Global.spell.known([word]):
         suggestions = Global.spell.candidates(word)
         if suggestions:
+            with dpg.handler_registry():
+                dpg.add_key_press_handler(dpg.mvKey_Tab,callback=autocorrect_callback,
+                                        user_data=list(suggestions)[0],tag="autocorrect_handler")
             suggestion_text = ", ".join(list(suggestions)[:3])
             dpg.set_value("err_txt", f"Did you mean: {suggestion_text}?")
             return
