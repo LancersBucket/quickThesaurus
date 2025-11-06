@@ -350,9 +350,6 @@ def copy_clipboard(sender) -> None:
 
 def main() -> None:
     """Main func"""
-    # Purge Invalid Cache on startup
-    Global.cache.purge(invalid_only=True)
-
     dpg.create_context()
 
     # Add the esc key as a valid way to minimize the program
@@ -418,7 +415,7 @@ def exit_handler() -> None:
     # But this should still fire for the keyboard poll event loop
     Global.kill_event.set()
     dpg.destroy_context()
-
+3
 if __name__ == "__main__":
     ctypes.windll.user32.SetProcessDPIAware()
     main()

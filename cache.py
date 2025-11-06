@@ -22,7 +22,7 @@ class Cache:
     def check(self, key: str) -> bool:
         """Check if a key exists in the cache"""
         if key in self.cache:
-            if int(time.time()) - self.cache[key]["__valid"] < self.ttl:
+            if (int(time.time()) - self.cache[key]["__valid"]) < self.ttl:
                 # Cache is valid
                 return True
         return False
@@ -34,13 +34,11 @@ class Cache:
     def save(self, key: str, value, save_to_disk=True) -> None:
         """Save a cache value, optionally writing to disk"""
         self.cache[key] = value
+        self.cache[key]["__valid"] = int(time.time()) + self.ttl
         if save_to_disk:
             self.write()
-    def write(self, ttl_update=True) -> None:
+    def write(self) -> None:
         """Write the data to cache, adding a ttl value"""
-        if ttl_update:
-            for key in self.cache:
-                self.cache[key]["__valid"] = int(time.time())
         with open(self.filename, "w", encoding="UTF-8") as file:
             json.dump(self.cache, file, indent=4)
     def purge(self, invalid_only=False) -> None:
@@ -56,29 +54,29 @@ class Cache:
             # Otherwise just clear the whole list
             self.cache = {}
 
-        self.write(ttl_update=False)
+        self.write()
 
     # Cache Validation #
     def invalidate(self, key: str) -> None:
         """Invalidate cache for a specific entry"""
         if key in self.cache:
             self.cache[key]["__valid"] = 0
-            self.write(ttl_update=False)
+            self.write()
     def invalidate_all(self) -> None:
         """Invalidate cache for all entries"""
         for key in self.cache:
             self.cache[key]["__valid"] = 0
-        self.write(ttl_update=False)
+        self.write()
     def revalidate(self, key: str) -> None:
         """Revalidate cache for a specific entry"""
         if key in self.cache:
-            self.cache[key]["__valid"] = self.ttl
-            self.write(ttl_update=False)
+            self.cache[key]["__valid"] = int(time.time()) + self.ttl
+            self.write()
     def revalidate_all(self) -> None:
         """Revalidate cache for all entries"""
         for key in self.cache:
-            self.cache[key]["__valid"] = self.ttl
-        self.write(ttl_update=False)
+            self.cache[key]["__valid"] = int(time.time()) + self.ttl
+        self.write()
 
     # Cache Information #
     def size(self) -> str:
