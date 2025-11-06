@@ -2,8 +2,11 @@
 import json, os
 
 class Config:
+    config_version: str = "1.0.0"
+
     """Configuration Handler"""
     default_config = {
+        "version": "1.0.0",
         "offset": [23, 0],
         "window_size": [525, 800],
         "alignment": "right",
@@ -34,6 +37,10 @@ class Config:
         with open(self.filename, "w", encoding="UTF-8") as file:
             json.dump(self.default_config, file, indent=4)
         self.config = self.default_config.copy()
+
+    def get_version(self) -> str:
+        """Get config/cache version"""
+        return self.get("version")
 
     # R+W Config #
     def check(self, key: str) -> bool:

@@ -23,3 +23,28 @@ def load_image(path: str, tag: str) -> None:
             texture_data.append(255 / 255)
         with dpg.texture_registry():
             dpg.add_static_texture(width=100, height=100, default_value=texture_data, tag=tag)
+
+def scroll_to(item) -> None:
+    """Scroll to specific object in window"""
+    if dpg.does_item_exist(item):
+        _, y = dpg.get_item_pos(item)
+        dpg.set_y_scroll("main_window", y)
+
+def version_compare(v1: str, v2: str) -> int:
+    """Compares two versions: -1 if v1 is larger than v2,
+       0 if they are the same, and 1 if v2 is larger than v1"""
+    v1_parts = v1.split(".")
+    v2_parts = v2.split(".")
+
+    for i in range(min(len(v1_parts),len(v2_parts))):
+        if v1_parts[i] > v2_parts[i]:
+            return -1
+        if v1_parts[i] < v2_parts[i]:
+            return 1
+
+    if len(v1_parts) > len(v2_parts):
+        return -1
+    if len(v1_parts) < len(v2_parts):
+        return 1
+
+    return 0

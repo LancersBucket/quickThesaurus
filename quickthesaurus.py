@@ -15,8 +15,7 @@ class Global:
     config: Config = Config()
 
     appname: str = "Quick Thesaurus"
-    version: str = "Beta"
-    builddate: str = time.strftime("%m/%d/%Y")
+    version: str = "0.1.0"
 
     toggle_event = threading.Event()
     kill_event = threading.Event()
@@ -97,11 +96,12 @@ def search_callback() -> None:
                     for i in range(0,len(word_data[key]['syn'])//3):
                         with dpg.table_row():
                             for j in range(0,3):
-                                dpg.add_button(label=word_data[key]['syn'][i*3+j],callback=copy_clipboard)
+                                dpg.add_button(label=word_data[key]['syn'][i*3+j],
+                                               callback=copy_clipboard)
 
         if Global.config.get("show_antonyms"):
             if len(word_data[key]['ant']) > 0:
-                dpg.add_text("Antoynms:", parent="output",color=bh.Color.RED)
+                dpg.add_text("Antonyms:", parent="output",color=bh.Color.RED)
                 with dpg.table(header_row=False,parent="output", indent=27):
                     dpg.add_table_column(indent_enable=True)
                     dpg.add_table_column(indent_enable=True)
@@ -109,7 +109,8 @@ def search_callback() -> None:
                     for i in range(0,len(word_data[key]['ant'])//3):
                         with dpg.table_row():
                             for j in range(0,3):
-                                dpg.add_button(label=word_data[key]['ant'][i*3+j],callback=copy_clipboard)
+                                dpg.add_button(label=word_data[key]['ant'][i*3+j],
+                                               callback=copy_clipboard)
 
         dpg.add_spacer(parent="output")
         dpg.add_separator(parent="output")
@@ -130,7 +131,7 @@ def toggle_window() -> None:
             print(e)
 
 def toggle_window_win32() -> str | None:
-    """Thread-safe toggle using only win32 calls (safe to call from hotkey thread)."""
+    """Thread-safe toggle using only win32 calls (safe to call from hotkey thread)"""
     try:
         hwnd = win32gui.FindWindow(None, Global.appname)
         if not hwnd:
@@ -205,6 +206,8 @@ def scache_callback(_sender, _app_data, user_data: str) -> None:
             Global.cache.purge(invalid_only=True)
         case "validate":
             Global.cache.revalidate_all()
+        case _:
+            raise NotImplementedError(f"Unknown option, {user_data}")
 
     dpg.delete_item("settings")
     settings_modal()
@@ -221,11 +224,12 @@ def move_window() -> None:
     y_pos = screen_height//2 - height//2 + vertical_offset
 
     if alignment == "right":
-        win32gui.MoveWindow(win32gui.FindWindow(None, Global.appname),
-                            screen_width-width-horizontal_offset, y_pos, width, height, True)
+        x_pos = screen_width - width - horizontal_offset
     else:
-        win32gui.MoveWindow(win32gui.FindWindow(None, Global.appname),
-                            0+horizontal_offset, y_pos, width, height, True)
+        x_pos = 0 + horizontal_offset
+
+    win32gui.MoveWindow(win32gui.FindWindow(None, Global.appname),
+                        x_pos, y_pos, width, height, True)
 
 def sconfig_callback(sender, _app_data, user_data: str) -> None:
     """Callback for the config section in settings"""
@@ -250,7 +254,7 @@ def sconfig_callback(sender, _app_data, user_data: str) -> None:
             Global.config.set_default()
             move_window()
         case _:
-            raise NotImplementedError("Unknown option")
+            raise NotImplementedError(f"Unknown option, {user_data}")
 
     dpg.delete_item("settings")
     settings_modal()
@@ -308,7 +312,7 @@ def settings_modal() -> None:
             dpg.add_button(label="Purge Cache", callback=scache_callback, user_data="purge")
             dpg.add_button(label="Trim Invalid Cache", callback=scache_callback, user_data="trim")
             dpg.add_button(label="Revalidate Cache", callback=scache_callback, user_data="validate")
-        dpg.add_text(f"{Global.appname} {Global.version} - {Global.builddate}")
+        dpg.add_text(f"{Global.appname} v{Global.version} [cache/config v{Global.config.get_version()}]")
 
         dpg.add_spacer(height=3)
 
@@ -318,16 +322,10 @@ def search_button_callback(sender) -> None:
     """Get word from button pressed and search it"""
     auto_search(dpg.get_item_configuration(sender)["label"])
 
-def auto_search(word) -> None:
+def auto_search(word: str) -> None:
     """Search a word programatically"""
     dpg.set_value("input_word", word)
     search_callback()
-
-def scroll_to(item) -> None:
-    """Scroll to specific object in window"""
-    if dpg.does_item_exist(item):
-        _, y = dpg.get_item_pos(item)
-        dpg.set_y_scroll("main_window", y)
 
 def copy_clipboard(sender) -> None:
     """Copies item to clipboard"""
@@ -352,7 +350,6 @@ def copy_clipboard(sender) -> None:
 
 def main() -> None:
     """Main func"""
-
     # Purge Invalid Cache on startup
     Global.cache.purge(invalid_only=True)
 
@@ -369,11 +366,7 @@ def main() -> None:
     except Exception as e:
         print(f"Failed to load custom font: {e}")
 
-    # Load the settings icon with fallback
-    try:
-        bh.load_image("assets/cog.png", "cog")
-    except Exception as e:
-        print(f"Failed to load settings icon: {e}")
+    bh.load_image("assets/cog.png", "cog")
 
     alignment = Global.config.get("alignment")
     width = Global.config.get("window_size")[0]
@@ -383,15 +376,13 @@ def main() -> None:
     horizontal_offset = Global.config.get("offset")[0]
     vertical_offset = Global.config.get("offset")[1]
     y_pos = screen_height//2 - height//2 + vertical_offset
-
     if alignment == "right":
-        dpg.create_viewport(title=Global.appname, x_pos=(screen_width-width-horizontal_offset),
-                            y_pos=y_pos, width=width, height=height,
-                            decorated=False, always_on_top=True, clear_color=bh.Color.CLEAR)
+        x_pos = screen_width - width - horizontal_offset
     else:
-        dpg.create_viewport(title=Global.appname, x_pos=0+horizontal_offset,
-                            y_pos=y_pos, width=width, height=height,
-                            decorated=False, always_on_top=True, clear_color=bh.Color.CLEAR)
+        x_pos = 0 + horizontal_offset
+
+    dpg.create_viewport(title=Global.appname, x_pos=x_pos, y_pos=y_pos, width=width, height=height,
+                        decorated=False, always_on_top=True, clear_color=bh.Color.CLEAR)
 
     # Main window
     with dpg.window(label=Global.appname, tag="main_window", no_close=True, no_collapse=True):
