@@ -48,3 +48,18 @@ def version_compare(v1: str, v2: str) -> int:
         return 1
 
     return 0
+
+def idi_div(int: int, double: float) -> int:
+    """// but returns an integer"""
+    return round(int // double)
+
+def resize_elements() -> None:
+    """Resize elements on viewport resize"""
+    viewport_width = dpg.get_viewport_width()
+    _viewport_height = dpg.get_viewport_height()
+    dpg.set_item_width("input_word", idi_div(viewport_width, 1.2))
+
+def add_columns(count: int) -> None:
+    """Add columns to a table"""
+    for _ in range(count):
+        dpg.add_table_column()

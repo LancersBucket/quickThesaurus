@@ -86,30 +86,28 @@ def search_callback() -> None:
         if 'def' in word_data[key]:
             dpg.add_text(f"{word_data[key]['def']}", parent="output", wrap=450, indent=27)
 
+        column_count = Global.config.get("column_count")
+
         if Global.config.get("show_synonyms"):
             if len(word_data[key]['syn']) > 0:
                 dpg.add_text("Synonyms:", parent="output",color=bh.Color.GREEN)
                 with dpg.table(header_row=False,parent="output", indent=27):
-                    dpg.add_table_column(indent_enable=True)
-                    dpg.add_table_column(indent_enable=True)
-                    dpg.add_table_column(indent_enable=True)
-                    for i in range(0,len(word_data[key]['syn'])//3):
+                    bh.add_columns(column_count)
+                    for i in range(0,len(word_data[key]['syn'])//column_count):
                         with dpg.table_row():
-                            for j in range(0,3):
-                                dpg.add_button(label=word_data[key]['syn'][i*3+j],
+                            for j in range(0,column_count):
+                                dpg.add_button(label=word_data[key]['syn'][i*column_count+j],
                                                callback=copy_clipboard)
 
         if Global.config.get("show_antonyms"):
             if len(word_data[key]['ant']) > 0:
                 dpg.add_text("Antonyms:", parent="output",color=bh.Color.RED)
                 with dpg.table(header_row=False,parent="output", indent=27):
-                    dpg.add_table_column(indent_enable=True)
-                    dpg.add_table_column(indent_enable=True)
-                    dpg.add_table_column(indent_enable=True)
-                    for i in range(0,len(word_data[key]['ant'])//3):
+                    bh.add_columns(column_count)
+                    for i in range(0,len(word_data[key]['ant'])//column_count):
                         with dpg.table_row():
-                            for j in range(0,3):
-                                dpg.add_button(label=word_data[key]['ant'][i*3+j],
+                            for j in range(0,column_count):
+                                dpg.add_button(label=word_data[key]['ant'][i*column_count+j],
                                                callback=copy_clipboard)
 
         dpg.add_spacer(parent="output")
@@ -253,6 +251,9 @@ def sconfig_callback(sender, _app_data, user_data: str) -> None:
         case "reset":
             Global.config.set_default()
             move_window()
+        case "column_count":
+            count = int(dpg.get_value(sender))
+            Global.config.save("column_count", count)
         case _:
             raise NotImplementedError(f"Unknown option, {user_data}")
 
@@ -281,7 +282,7 @@ def settings_modal() -> None:
         dpg.add_input_int(label="Vertical Offset", tag="vertical_offset_input", width=150,
                             default_value=Global.config.get("offset")[1])
 
-        dpg.add_button(label="Save", callback=sconfig_callback, user_data="save_window")
+        dpg.add_button(label="Resize", callback=sconfig_callback, user_data="save_window")
 
         dpg.add_checkbox(label="Close on Copy", default_value=Global.config.get("close_on_copy"),
                          callback=sconfig_callback, user_data="close_on_copy")
@@ -293,6 +294,11 @@ def settings_modal() -> None:
                          callback=sconfig_callback, user_data="show_synonyms")
         dpg.add_checkbox(label="Show Antonyms", default_value=Global.config.get("show_antonyms"),
                          callback=sconfig_callback, user_data="show_antonyms")
+        with dpg.group(horizontal=True):
+            dpg.add_text("Columns:")
+            dpg.add_radio_button(["1", "2", "3"], default_value=Global.config.get("column_count"),
+                                 tag="column_count", user_data="column_count", horizontal=True, 
+                                 callback=sconfig_callback)
 
         dpg.add_spacer(height=5)
 
@@ -384,7 +390,7 @@ def main() -> None:
     # Main window
     with dpg.window(label=Global.appname, tag="main_window", no_close=True, no_collapse=True):
         with dpg.group(horizontal=True):
-            dpg.add_input_text(label="Enter a word", tag="input_word",
+            dpg.add_input_text(tag="input_word", hint="Enter a word",
                                on_enter=True, callback=search_callback)
             dpg.add_image_button("cog", width=24, height=24, callback=settings_modal)
         with dpg.group(horizontal=True):
@@ -401,6 +407,7 @@ def main() -> None:
     dpg.setup_dearpygui()
     dpg.set_primary_window("main_window", True)
     dpg.show_viewport()
+    dpg.set_viewport_resize_callback(callback=bh.resize_elements)
 
     dpg.focus_item("input_word")
 
