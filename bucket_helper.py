@@ -3,26 +3,28 @@ import dearpygui.dearpygui as dpg
 
 class Color:
     """Colors"""
-    GREEN = (0,255,0,255)
-    RED = (255,0,0,255)
-    CLEAR = (0,0,0,0)
+    # Color = (R,G,B,A)
+    GREEN   = (0,255,0,255)
+    RED     = (255,0,0,255)
+    CLEAR   = (0,0,0,0)
 
 def load_image(path: str, tag: str) -> None:
     """Loads an image into the texture registry"""
     try:
         width, height, _, data = dpg.load_image(path)
-        with dpg.texture_registry():
-            dpg.add_static_texture(width, height, data, tag=tag)
     except Exception:
         print(f"Failed to load image at {path}, using fallback texture.")
-        texture_data = []
-        for _ in range(0, 100 * 100):
-            texture_data.append(255 / 255)
-            texture_data.append(0)
-            texture_data.append(255 / 255)
-            texture_data.append(255 / 255)
+        width = 100
+        height = 100
+        data = []
+        for _ in range(0, width * height):
+            data.append(255 / 255)
+            data.append(0)
+            data.append(255 / 255)
+            data.append(255 / 255)
+    finally:
         with dpg.texture_registry():
-            dpg.add_static_texture(width=100, height=100, default_value=texture_data, tag=tag)
+            dpg.add_static_texture(width=width, height=height, default_value=data, tag=tag)
 
 def scroll_to(item) -> None:
     """Scroll to specific object in window"""
@@ -49,9 +51,9 @@ def version_compare(v1: str, v2: str) -> int:
 
     return 0
 
-def idi_div(int: int, double: float) -> int:
+def idi_div(integer: int, double: float) -> int:
     """// but returns an integer"""
-    return round(int // double)
+    return round(integer // double)
 
 def resize_elements() -> None:
     """Resize elements on viewport resize"""

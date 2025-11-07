@@ -1,5 +1,5 @@
 """Quick Thesaurus"""
-import threading, time, atexit, win32gui, win32con, keyboard, win32api, ctypes
+import threading, time, atexit, keyboard
 from spellchecker import SpellChecker
 import dearpygui.dearpygui as dpg
 import pyperclip as ppc
@@ -7,6 +7,7 @@ from cache import Cache
 from config import Config
 from mw_parser import SynAnt
 import bucket_helper as bh
+import win32 as w32
 
 class Global:
     """Global Variables"""
@@ -117,61 +118,24 @@ def search_callback() -> None:
 
     dpg.set_value("err_txt", "")
 
-def toggle_window() -> None:
+def window_toggle() -> None:
     """Toggles the window state between focused and minimized"""
     # Use the win32 implementation and, if called from the main thread,
     # schedule a DPG frame callback to focus the input when restored.
-    action = toggle_window_win32()
+    action = w32.toggle_window(Global.appname)
     if action == "restore":
         try:
             dpg.set_frame_callback(dpg.get_frame_count() + 1, lambda: dpg.focus_item("input_word"))
         except Exception as e:
             print(e)
 
-def toggle_window_win32() -> str | None:
-    """Thread-safe toggle using only win32 calls (safe to call from hotkey thread)"""
-    try:
-        hwnd = win32gui.FindWindow(None, Global.appname)
-        if not hwnd:
-            # Fallback: try to find any top-level window that contains the appname in its title
-            def _enum(hwnd_enum, result):
-                title = win32gui.GetWindowText(hwnd_enum)
-                if title and Global.appname in title:
-                    result.append(hwnd_enum)
-            found = []
-            win32gui.EnumWindows(_enum, found)
-            if found:
-                hwnd = found[0]
-            else:
-                return None
 
-        placement = win32gui.GetWindowPlacement(hwnd)
-        # placement[1] == 2 means minimized, 1 means normal
-        show_cmd = placement[1]
-        is_minimized = show_cmd in (win32con.SW_SHOWMINIMIZED, win32con.SW_MINIMIZE)
-
-        if is_minimized:
-            # Restore and try to bring to foreground
-            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-            try:
-                win32gui.SetForegroundWindow(hwnd)
-            except Exception as e:
-                print(e)
-            print(f"toggle: hwnd={hwnd} action=restore")
-            return "restore"
-
-        win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
-        print(f"toggle: hwnd={hwnd} action=minimize")
-        return "minimize"
-    except Exception as e:
-        print(f"Error in toggle_window_win32: {e}")
-        return None
 
 def hotkey_listener() -> None:
     """Listens for the hotkey to toggle the window state"""
     while not Global.kill_event.is_set():
         keyboard.wait("ctrl+alt+a")
-        toggle_window()
+        window_toggle()
         # Debouncing to prevent repeated openings/closings
         # Wait until the a key is released (so you can hold ctrl+alt and tap a)
         while keyboard.is_pressed("a"):
@@ -188,7 +152,7 @@ def poll_toggle() -> None:
 
     try:
         if Global.toggle_event.is_set():
-            toggle_window()
+            window_toggle()
             Global.toggle_event.clear()
     except Exception as e:
         print(f"Error in poll_toggle: {e}")
@@ -215,8 +179,8 @@ def move_window() -> None:
     alignment = Global.config.get("alignment")
     width = Global.config.get("window_size")[0]
     height = Global.config.get("window_size")[1]
-    screen_width = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
-    screen_height = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
+    screen_width = w32.screen_width()
+    screen_height = w32.screen_height()
     horizontal_offset = Global.config.get("offset")[0]
     vertical_offset = Global.config.get("offset")[1]
     y_pos = screen_height//2 - height//2 + vertical_offset
@@ -226,8 +190,8 @@ def move_window() -> None:
     else:
         x_pos = 0 + horizontal_offset
 
-    win32gui.MoveWindow(win32gui.FindWindow(None, Global.appname),
-                        x_pos, y_pos, width, height, True)
+    w32.move_window(appname=Global.appname, x_pos=x_pos,
+                    y_pos=y_pos, width=width, height=height)
 
 def sconfig_callback(sender, _app_data, user_data: str) -> None:
     """Callback for the config section in settings"""
@@ -297,7 +261,7 @@ def settings_modal() -> None:
         with dpg.group(horizontal=True):
             dpg.add_text("Columns:")
             dpg.add_radio_button(["1", "2", "3"], default_value=Global.config.get("column_count"),
-                                 tag="column_count", user_data="column_count", horizontal=True, 
+                                 tag="column_count", user_data="column_count", horizontal=True,
                                  callback=sconfig_callback)
 
         dpg.add_spacer(height=5)
@@ -318,9 +282,12 @@ def settings_modal() -> None:
             dpg.add_button(label="Purge Cache", callback=scache_callback, user_data="purge")
             dpg.add_button(label="Trim Invalid Cache", callback=scache_callback, user_data="trim")
             dpg.add_button(label="Revalidate Cache", callback=scache_callback, user_data="validate")
+
+        dpg.add_spacer(height=5)
+
         dpg.add_text(f"{Global.appname} v{Global.version} [cache/config v{Global.config.get_version()}]")
 
-        dpg.add_spacer(height=3)
+        dpg.add_spacer(height=5)
 
         dpg.add_button(label="Quit", callback=exit_handler)
 
@@ -340,7 +307,7 @@ def copy_clipboard(sender) -> None:
         ppc.copy(word)
 
         if Global.config.get("close_on_copy"):
-            toggle_window_win32()
+            w32.toggle_window(Global.appname)
         else:
             dpg.set_value("err_txt", f"Copied '{word}' to clipboard")
             threading.Timer(1.0, lambda: dpg.set_value("err_txt", "")).start()
@@ -374,8 +341,8 @@ def main() -> None:
     alignment = Global.config.get("alignment")
     width = Global.config.get("window_size")[0]
     height = Global.config.get("window_size")[1]
-    screen_width = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
-    screen_height = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
+    screen_width = w32.screen_width()
+    screen_height = w32.screen_height()
     horizontal_offset = Global.config.get("offset")[0]
     vertical_offset = Global.config.get("offset")[1]
     y_pos = screen_height//2 - height//2 + vertical_offset
@@ -422,7 +389,7 @@ def exit_handler() -> None:
     # But this should still fire for the keyboard poll event loop
     Global.kill_event.set()
     dpg.destroy_context()
-3
+
 if __name__ == "__main__":
-    ctypes.windll.user32.SetProcessDPIAware()
+    w32.respect_dpi()
     main()
