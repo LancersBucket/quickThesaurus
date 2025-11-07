@@ -1,5 +1,8 @@
 """Win32 calls"""
-import win32gui, win32con, win32api, ctypes
+import ctypes
+import win32gui
+import win32con
+import win32api
 
 def toggle_window(appname: str) -> str | None:
     """Thread-safe toggle using only win32 calls (safe to call from hotkey thread)"""
@@ -54,4 +57,5 @@ def move_window(appname, x_pos, y_pos, width, height) -> None:
                         x_pos, y_pos, width, height, True)
 
 def respect_dpi() -> None:
+    """Set process to be DPI aware"""
     ctypes.windll.user32.SetProcessDPIAware()

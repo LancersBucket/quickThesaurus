@@ -1,10 +1,11 @@
-"""Configuration r/w"""
-import json, os
+"""Configuration R/W"""
+import json
+import os
 
 class Config:
+    """Configuration Handler"""
     config_version: str = "1.0.0"
 
-    """Configuration Handler"""
     default_config = {
         "version": "1.0.0",
         "offset": [23, 0],

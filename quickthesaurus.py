@@ -3,11 +3,11 @@ import threading, time, atexit, keyboard
 from spellchecker import SpellChecker
 import dearpygui.dearpygui as dpg
 import pyperclip as ppc
-from cache import Cache
-from config import Config
+from bucket.cache import Cache
+from bucket.config import Config
 from mw_parser import SynAnt
-import bucket_helper as bh
-import win32 as w32
+import bucket.helper as bh
+import bucket.win32 as w32
 
 class Global:
     """Global Variables"""
@@ -128,8 +128,6 @@ def window_toggle() -> None:
             dpg.set_frame_callback(dpg.get_frame_count() + 1, lambda: dpg.focus_item("input_word"))
         except Exception as e:
             print(e)
-
-
 
 def hotkey_listener() -> None:
     """Listens for the hotkey to toggle the window state"""

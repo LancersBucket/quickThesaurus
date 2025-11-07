@@ -4,3 +4,5 @@ pyperclip
 dearpygui
 pyspellchecker
 beautifulsoup4
+urllib3
+soupsieve
