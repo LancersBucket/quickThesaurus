@@ -24,7 +24,7 @@ class Cache:
     def check(self, key: str) -> bool:
         """Check if a key exists in the cache"""
         if key in self.cache:
-            if (int(time.time()) - self.cache[key]["__valid"]) < self.ttl:
+            if int(time.time()) < self.cache[key]["__valid"]:
                 # Cache is valid
                 return True
         return False

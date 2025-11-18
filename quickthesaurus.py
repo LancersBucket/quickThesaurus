@@ -3,9 +3,9 @@ import threading, time, atexit, keyboard
 from spellchecker import SpellChecker
 import dearpygui.dearpygui as dpg
 import pyperclip as ppc
+from mw_parser import SynAnt
 from bucket.cache import Cache
 from bucket.config import Config
-from mw_parser import SynAnt
 import bucket.helper as bh
 import bucket.win32 as w32
 
@@ -38,7 +38,6 @@ def get_word_data(word: str) -> dict:
             Global.cache.save(word, thesaurus)
             return thesaurus
         return {}
-
     except Exception as e:
         print(f"Error fetching word data: {e}")
         return {}
@@ -274,7 +273,7 @@ def settings_modal() -> None:
         if total == 0:
             percent_invalid = 0.0
         else:
-            percent_invalid = (invalid / total) * 100
+            percent_invalid = round((invalid / total) * 100, 1)
         dpg.add_text(f"Cache Entries: {total} (Total) | {invalid} [{percent_invalid}%] (Invalid)")
         with dpg.group(horizontal=True):
             dpg.add_button(label="Purge Cache", callback=scache_callback, user_data="purge")
