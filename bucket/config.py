@@ -14,7 +14,8 @@ class Config:
         "close_on_copy": True,
         "show_synonyms": True,
         "show_antonyms": True,
-        "column_count": 3
+        "column_count": 3,
+        "ttl": 604800
     }
 
     def __init__(self, filename="config.json") -> None:

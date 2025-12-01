@@ -1,5 +1,6 @@
 """Helper functions"""
 import dearpygui.dearpygui as dpg
+import pyperclip as ppc
 
 class Color:
     """Colors"""
@@ -65,3 +66,11 @@ def add_columns(count: int) -> None:
     """Add columns to a table"""
     for _ in range(count):
         dpg.add_table_column()
+
+def copy_clipboard(string: str) -> None:
+    """Copies string to clipboard"""
+    try:
+        ppc.copy(string)
+    except Exception as e:
+        print(f"Error copying to clipboard: {e}")
+        dpg.set_value("err_txt", "Failed to copy to clipboard")

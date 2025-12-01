@@ -2,7 +2,6 @@
 import threading, time, atexit, keyboard
 from spellchecker import SpellChecker
 import dearpygui.dearpygui as dpg
-import pyperclip as ppc
 from mw_parser import SynAnt
 from bucket.cache import Cache
 from bucket.config import Config
@@ -12,8 +11,8 @@ import bucket.win32 as w32
 class Global:
     """Global Variables"""
     spell: SpellChecker = SpellChecker(distance=2)
-    cache: Cache = Cache()
     config: Config = Config()
+    cache: Cache = Cache()
 
     appname: str = "Quick Thesaurus"
     version: str = "0.1.0"
@@ -46,6 +45,30 @@ def autocorrect_callback(_sender, _app_data, user_data) -> None:
     """Tab to autocorrect to first result"""
     dpg.delete_item("autocorrect_handler")
     dpg.set_value("input_word", user_data)
+
+def word_button_callback(sender) -> None:
+    """Callback for word buttons"""
+    word = dpg.get_item_configuration(sender)["label"]
+
+    if dpg.is_key_down(dpg.mvKey_ModCtrl):
+        # If ctrl is held, search the word instead of copying
+        dpg.set_value("input_word", word)
+        search_callback()
+    else:
+        # Otherwise, copy to clipboard
+        bh.copy_clipboard(word)
+
+        if Global.config.get("close_on_copy"):
+            w32.toggle_window(Global.appname)
+        else:
+            dpg.set_value("err_txt", f"Copied '{word}' to clipboard")
+            threading.Timer(1.0, lambda: dpg.set_value("err_txt", "")).start()
+
+        # Ensure DPG input gets focus on the next frame (if restored)
+        try:
+            dpg.set_frame_callback(dpg.get_frame_count() + 1, lambda: dpg.focus_item("input_word"))
+        except Exception as e:
+            print(e)
 
 def search_callback() -> None:
     """Callback for entering a word in the search bar"""
@@ -97,7 +120,7 @@ def search_callback() -> None:
                         with dpg.table_row():
                             for j in range(0,column_count):
                                 dpg.add_button(label=word_data[key]['syn'][i*column_count+j],
-                                               callback=copy_clipboard)
+                                               callback=word_button_callback)
 
         if Global.config.get("show_antonyms"):
             if len(word_data[key]['ant']) > 0:
@@ -108,7 +131,7 @@ def search_callback() -> None:
                         with dpg.table_row():
                             for j in range(0,column_count):
                                 dpg.add_button(label=word_data[key]['ant'][i*column_count+j],
-                                               callback=copy_clipboard)
+                                               callback=word_button_callback)
 
         dpg.add_spacer(parent="output")
         dpg.add_separator(parent="output")
@@ -296,27 +319,6 @@ def auto_search(word: str) -> None:
     """Search a word programatically"""
     dpg.set_value("input_word", word)
     search_callback()
-
-def copy_clipboard(sender) -> None:
-    """Copies item to clipboard"""
-    try:
-        word = dpg.get_item_configuration(sender)["label"]
-        ppc.copy(word)
-
-        if Global.config.get("close_on_copy"):
-            w32.toggle_window(Global.appname)
-        else:
-            dpg.set_value("err_txt", f"Copied '{word}' to clipboard")
-            threading.Timer(1.0, lambda: dpg.set_value("err_txt", "")).start()
-
-        # Ensure DPG input gets focus on the next frame (if restored)
-        try:
-            dpg.set_frame_callback(dpg.get_frame_count() + 1, lambda: dpg.focus_item("input_word"))
-        except Exception as e:
-            print(e)
-    except Exception as e:
-        print(f"Error copying to clipboard: {e}")
-        dpg.set_value("err_txt", "Failed to copy to clipboard")
 
 def main() -> None:
     """Main func"""

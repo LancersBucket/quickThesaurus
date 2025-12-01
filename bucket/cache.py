@@ -20,6 +20,11 @@ class Cache:
             with open(self.filename, "w", encoding="UTF-8") as file:
                 file.write("{}")
 
+    def update_ttl(self, ttl: int) -> None:
+        """Set TTL for cache entries"""
+        self.ttl = ttl
+        self.revalidate_all()
+
     # R+W Cache #
     def check(self, key: str) -> bool:
         """Check if a key exists in the cache"""
