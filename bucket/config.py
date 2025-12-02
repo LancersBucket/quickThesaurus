@@ -18,7 +18,7 @@ class Config:
         "ttl": 604800
     }
 
-    def __init__(self, filename="config.json") -> None:
+    def __init__(self, filename: str = "config.json") -> None:
         self.filename = filename
         if os.path.exists(self.filename):
             with open(self.filename, "r", encoding="UTF-8") as file:

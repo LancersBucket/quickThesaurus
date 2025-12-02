@@ -27,6 +27,16 @@ def load_image(path: str, tag: str) -> None:
         with dpg.texture_registry():
             dpg.add_static_texture(width=width, height=height, default_value=data, tag=tag)
 
+def load_font(path: str, size: int, set_default: bool = False) -> None:
+    """Loads a font into the font registry, with error handling"""
+    try:
+        with dpg.font_registry():
+            font = dpg.add_font(path, size)
+            if set_default:
+                dpg.bind_font(font)
+    except Exception as e:
+        print(f"Failed to load custom font: {e}")
+
 def scroll_to(item) -> None:
     """Scroll to specific object in window"""
     if dpg.does_item_exist(item):

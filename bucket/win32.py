@@ -33,11 +33,9 @@ def toggle_window(appname: str) -> str | None:
                 win32gui.SetForegroundWindow(hwnd)
             except Exception as e:
                 print(e)
-            print(f"toggle: hwnd={hwnd} action=restore")
             return "restore"
 
         win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
-        print(f"toggle: hwnd={hwnd} action=minimize")
         return "minimize"
     except Exception as e:
         print(f"Error in toggle_window_win32: {e}")

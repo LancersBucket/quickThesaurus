@@ -5,7 +5,7 @@ import time
 
 class Cache:
     """Cache Handler"""
-    def __init__(self, filename="cache.json", ttl=604800) -> None:
+    def __init__(self, filename: str = "cache.json", ttl: int = 604800) -> None:
         self.filename = filename
 
         # TTL is currently set to 1 week, although I'm not sure what would be a better value
@@ -28,10 +28,9 @@ class Cache:
     # R+W Cache #
     def check(self, key: str) -> bool:
         """Check if a key exists in the cache"""
-        if key in self.cache:
-            if int(time.time()) < self.cache[key]["__valid"]:
-                # Cache is valid
-                return True
+        if ((key in self.cache) and (int(time.time()) < self.cache[key]["__valid"])):
+            # Cache is valid
+            return True
         return False
     def get(self, key: str) -> dict | None:
         """Get the key from the cache"""
