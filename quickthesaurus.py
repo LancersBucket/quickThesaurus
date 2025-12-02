@@ -1,5 +1,5 @@
 """Quick Thesaurus"""
-import threading, time, atexit, keyboard
+import threading, time, keyboard
 from spellchecker import SpellChecker
 import dearpygui.dearpygui as dpg
 from mw_parser import SynAnt
@@ -112,23 +112,25 @@ def search_callback() -> None:
 
         column_count = Global.config.get("column_count")
 
-        if (Global.config.get("show_synonyms") and len(word_data[key]['syn']) > 0):
+        syn_length = len(word_data[key]['syn'])
+        if (Global.config.get("show_synonyms") and syn_length > 0):
             dpg.add_text("Synonyms:", parent="output",color=Color.GREEN)
             with dpg.table(header_row=False,parent="output", indent=27):
                 bh.add_columns(column_count)
-                for i in range(0,len(word_data[key]['syn'])//column_count):
+                for i in range(syn_length//column_count):
                     with dpg.table_row():
-                        for j in range(0,column_count):
+                        for j in range(column_count):
                             dpg.add_button(label=word_data[key]['syn'][i*column_count+j],
                                             callback=word_button_callback)
-
-        if (Global.config.get("show_antonyms") and len(word_data[key]['ant']) > 0):
+        
+        ant_length = len(word_data[key]['ant'])
+        if (Global.config.get("show_antonyms") and ant_length > 0):
             dpg.add_text("Antonyms:", parent="output",color=Color.RED)
             with dpg.table(header_row=False,parent="output", indent=27):
                 bh.add_columns(column_count)
-                for i in range(0,len(word_data[key]['ant'])//column_count):
+                for i in range(ant_length//column_count):
                     with dpg.table_row():
-                        for j in range(0,column_count):
+                        for j in range(column_count):
                             dpg.add_button(label=word_data[key]['ant'][i*column_count+j],
                                             callback=word_button_callback)
 
@@ -310,10 +312,6 @@ def main() -> None:
     """Main func"""
     dpg.create_context()
 
-    # Add the esc key as a valid way to minimize the program
-    with dpg.handler_registry():
-        dpg.add_key_release_handler(dpg.mvKey_Escape, callback=lambda: Global.toggle_event.set())
-
     bh.load_font("assets/NotoSerifCJKjp-Medium.otf", 24, set_default=True)
     bh.load_image("assets/cog.png", "cog")
 
@@ -346,7 +344,6 @@ def main() -> None:
 
     # Start a thread to listen to the hotkey
     threading.Thread(target=hotkey_listener, daemon=True).start()
-    atexit.register(exit_handler)
     dpg.setup_dearpygui()
     dpg.set_primary_window("main_window", True)
     dpg.show_viewport()
@@ -357,7 +354,9 @@ def main() -> None:
     # Start the main thread polling to listen for the hotkey
     poll_toggle()
     dpg.start_dearpygui()
+
     dpg.destroy_context()
+    exit_handler()
 
 def exit_handler() -> None:
     """Cleanup on quit"""
