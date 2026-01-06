@@ -46,7 +46,7 @@ class Cache:
     def write(self) -> None:
         """Write the data to cache, adding a ttl value"""
         with open(self.filename, "w", encoding="UTF-8") as file:
-            json.dump(self.cache, file, indent=4)
+            json.dump(self.cache, file)#, indent=4)
     def purge(self, invalid_only=False) -> None:
         """Purge cache, optionally only discard invalid entries"""
         newcache = self.cache.copy()

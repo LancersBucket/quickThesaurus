@@ -30,6 +30,7 @@ def get_word_data(word: str) -> dict:
             return thesaurus
 
         # Fetch from Merriam-Webster
+        dpg.set_value("status_txt", "Waiting on Merriam-Webster...")
         word_data: SynAnt = SynAnt(word)
         thesaurus = word_data.get_thesaurus()
 
@@ -62,8 +63,8 @@ def word_button_callback(sender) -> None:
         if Global.config.get("close_on_copy"):
             w32.toggle_window(Global.appname)
         else:
-            dpg.set_value("err_txt", f"Copied '{word}' to clipboard")
-            threading.Timer(1.0, lambda: dpg.set_value("err_txt", "")).start()
+            dpg.set_value("status_txt", f"Copied '{word}' to clipboard")
+            threading.Timer(1.0, lambda: dpg.set_value("status_txt", "")).start()
 
         # Ensure DPG input gets focus on the next frame (if restored)
         try:
@@ -75,11 +76,11 @@ def search_callback() -> None:
     """Callback for entering a word in the search bar"""
     dpg.delete_item("output", children_only=True)
     dpg.delete_item("autocorrect_handler")
-    dpg.set_value("err_txt", "Loading...")
+    dpg.set_value("status_txt", "Loading...")
 
     word = dpg.get_value("input_word").strip().lower()
     if not word:
-        dpg.set_value("err_txt", "Please enter a word.")
+        dpg.set_value("status_txt", "Please enter a word.")
         return
 
     # Enhanced spell check with suggestions
@@ -90,13 +91,13 @@ def search_callback() -> None:
                 dpg.add_key_press_handler(dpg.mvKey_Tab,callback=autocorrect_callback,
                                         user_data=list(suggestions)[0],tag="autocorrect_handler")
             suggestion_text = ", ".join(list(suggestions)[:3])
-            dpg.set_value("err_txt", f"Did you mean: {suggestion_text}?")
+            dpg.set_value("status_txt", f"Did you mean: {suggestion_text}?")
             return
 
     # If word data is none, then it isn't a real word
     word_data = get_word_data(word)
     if not word_data:
-        dpg.set_value("err_txt", f"No results found for '{word}'.")
+        dpg.set_value("status_txt", f"No results found for '{word}'.")
         return
 
     # Generate thesaurus
@@ -139,7 +140,7 @@ def search_callback() -> None:
 
         counter += 1
 
-    dpg.set_value("err_txt", "")
+    dpg.set_value("status_txt", "")
 
 def window_toggle() -> None:
     """Toggles the window state between focused and minimized"""
@@ -231,6 +232,12 @@ def sconfig_callback(sender, _app_data, user_data: str) -> None:
 
     dpg.delete_item("settings")
     settings_modal()
+
+def reset_settings_callback() -> None:
+    """Reset settings on Ctrl+Shift+R"""
+    if dpg.is_key_down(dpg.mvKey_ModCtrl) and dpg.is_key_down(dpg.mvKey_ModShift):
+        Global.config.set_default()
+        move_window()
 
 def settings_modal() -> None:
     """Settings modal"""
@@ -336,11 +343,14 @@ def main() -> None:
             dpg.add_image_button("cog", width=24, height=24, callback=settings_modal)
         with dpg.group(horizontal=True):
             dpg.add_button(label="Search", callback=search_callback)
-            dpg.add_text(tag="err_txt")
+            dpg.add_text(tag="status_txt")
 
         dpg.add_spacer()
         dpg.add_separator()
         dpg.add_group(tag="output")
+
+    with dpg.handler_registry():
+        dpg.add_key_press_handler(dpg.mvKey_R,callback=reset_settings_callback,tag="reset_settings")
 
     # Start a thread to listen to the hotkey
     threading.Thread(target=hotkey_listener, daemon=True).start()

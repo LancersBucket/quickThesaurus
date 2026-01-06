@@ -36,6 +36,10 @@ class SynAnt:
 
     def _extract_definitions(self) -> None:
         """Extract definitions from the html"""
+        for result in self._htmlparser.select("[class*='spelling-suggestion-text']"):
+            self._thesaurus = {}
+            return
+
         # Each subdefinition is located within .sense-content
         for result in self._htmlparser.select("div[class*='sense-content']"):
                         # Extract the "as in" word, this loop should only ever run once
